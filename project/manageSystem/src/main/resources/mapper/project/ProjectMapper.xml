@@ -1,0 +1,307 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.ProjectMapper">
+
+    <resultMap id="ProjectEntityMap" type="com.manage.managesystem.entity.ProjectEntity">
+        <id property="id" column="id"/>
+        <result property="projectCode" column="project_code"/>
+        <result property="name" column="name"/>
+        <result property="description" column="description"/>
+        <result property="lifeCycleModel" column="life_cycle_model"/>
+        <result property="status" column="status"/>
+        <result property="startDate" column="start_date"/>
+        <result property="endDate" column="end_date"/>
+        <result property="actualStartDate" column="actual_start_date"/>
+        <result property="actualEndDate" column="actual_end_date"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="templateId" column="template_id"/>
+        <result property="progressRate" column="progress_rate"/>
+        <result property="plannedBudget" column="planned_budget"/>
+        <result property="actualCost" column="actual_cost"/>
+        <result property="isDemo" column="is_demo"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="ProjectListItemVoMap" type="com.manage.managesystem.vo.ProjectListItemVO">
+        <id property="id" column="id"/>
+        <result property="projectCode" column="project_code"/>
+        <result property="name" column="name"/>
+        <result property="description" column="description"/>
+        <result property="status" column="status"/>
+        <result property="lifeCycleModel" column="life_cycle_model"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="ownerName" column="owner_name"/>
+        <result property="startDate" column="start_date"/>
+        <result property="endDate" column="end_date"/>
+        <result property="progressRate" column="progress_rate"/>
+        <result property="plannedBudget" column="planned_budget"/>
+        <result property="actualCost" column="actual_cost"/>
+    </resultMap>
+
+    <resultMap id="ProjectDetailVoMap" type="com.manage.managesystem.vo.ProjectDetailVO" extends="ProjectListItemVoMap">
+        <result property="actualStartDate" column="actual_start_date"/>
+        <result property="actualEndDate" column="actual_end_date"/>
+        <result property="templateId" column="template_id"/>
+        <result property="templateName" column="template_name"/>
+        <result property="isDemo" column="is_demo"/>
+        <result property="memberCount" column="member_count"/>
+        <result property="openRiskCount" column="open_risk_count"/>
+        <result property="pendingChangeCount" column="pending_change_count"/>
+    </resultMap>
+
+    <resultMap id="ProjectCharterVoMap" type="com.manage.managesystem.vo.ProjectCharterVO">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="projectName" column="project_name"/>
+        <result property="objective" column="objective"/>
+        <result property="scopeSummary" column="scope_summary"/>
+        <result property="sponsor" column="sponsor"/>
+        <result property="approver" column="approver"/>
+        <result property="stakeholders" column="stakeholders"/>
+        <result property="successCriteria" column="success_criteria"/>
+    </resultMap>
+
+    <resultMap id="ProjectDashboardMap" type="com.manage.managesystem.vo.ProjectDashboardVO">
+        <result property="taskTotal" column="task_total"/>
+        <result property="taskCompleted" column="task_completed"/>
+        <result property="taskCompletionRate" column="task_completion_rate"/>
+        <result property="plannedCost" column="planned_cost"/>
+        <result property="actualCost" column="actual_cost"/>
+        <result property="openRiskCount" column="open_risk_count"/>
+        <result property="pendingChangeCount" column="pending_change_count"/>
+    </resultMap>
+
+    <resultMap id="MilestoneVoMap" type="com.manage.managesystem.vo.MilestoneVO">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="description" column="description"/>
+        <result property="plannedDate" column="planned_date"/>
+        <result property="actualDate" column="actual_date"/>
+        <result property="status" column="status"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="ownerName" column="owner_name"/>
+    </resultMap>
+
+    <select id="selectList" resultMap="ProjectListItemVoMap">
+        select p.id,
+               p.project_code,
+               p.name,
+               p.description,
+               p.status,
+               p.life_cycle_model,
+               p.owner_id,
+               u.real_name as owner_name,
+               p.start_date,
+               p.end_date,
+               p.progress_rate,
+               p.planned_budget,
+               p.actual_cost
+        from project_info p
+                 left join sys_user u on u.id = p.owner_id
+        where p.is_deleted = 0
+        <if test="query != null and query.keyword != null and query.keyword != ''">
+            and (p.name like concat('%', #{query.keyword}, '%')
+            or p.project_code like concat('%', #{query.keyword}, '%'))
+        </if>
+        <if test="query != null and query.status != null and query.status != ''">
+            and p.status = #{query.status}
+        </if>
+        <if test="query != null and query.lifeCycleModel != null and query.lifeCycleModel != ''">
+            and p.life_cycle_model = #{query.lifeCycleModel}
+        </if>
+        <if test="query != null and query.ownerId != null">
+            and p.owner_id = #{query.ownerId}
+        </if>
+        order by p.created_at desc
+    </select>
+
+    <select id="selectDetailById" resultMap="ProjectDetailVoMap">
+        select p.id,
+               p.project_code,
+               p.name,
+               p.description,
+               p.status,
+               p.life_cycle_model,
+               p.owner_id,
+               u.real_name as owner_name,
+               p.start_date,
+               p.end_date,
+               p.progress_rate,
+               p.planned_budget,
+               p.actual_cost,
+               p.actual_start_date,
+               p.actual_end_date,
+               p.template_id,
+               pt.name as template_name,
+               p.is_demo,
+               (select count(1) from project_member pm where pm.project_id = p.id) as member_count,
+               (select count(1) from risk_register r where r.project_id = p.id and r.is_deleted = 0 and r.status &lt;&gt; 'CLOSED') as open_risk_count,
+               (select count(1) from change_request c where c.project_id = p.id and c.is_deleted = 0 and c.status in ('SUBMITTED', 'UNDER_REVIEW')) as pending_change_count
+        from project_info p
+                 left join sys_user u on u.id = p.owner_id
+                 left join project_template pt on pt.id = p.template_id
+        where p.id = #{projectId}
+          and p.is_deleted = 0
+    </select>
+
+    <select id="selectEntityById" resultMap="ProjectEntityMap">
+        select id,
+               project_code,
+               name,
+               description,
+               life_cycle_model,
+               status,
+               start_date,
+               end_date,
+               actual_start_date,
+               actual_end_date,
+               owner_id,
+               template_id,
+               progress_rate,
+               planned_budget,
+               actual_cost,
+               is_demo,
+               created_by,
+               created_at,
+               updated_by,
+               updated_at,
+               is_deleted
+        from project_info
+        where id = #{projectId}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insert" parameterType="com.manage.managesystem.entity.ProjectEntity">
+        insert into project_info (
+            id, project_code, name, description, life_cycle_model, status,
+            start_date, end_date, actual_start_date, actual_end_date,
+            owner_id, template_id, progress_rate, planned_budget, actual_cost,
+            is_demo, created_by, created_at, updated_by, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectCode}, #{name}, #{description}, #{lifeCycleModel}, #{status},
+            #{startDate}, #{endDate}, #{actualStartDate}, #{actualEndDate},
+            #{ownerId}, #{templateId}, #{progressRate}, #{plannedBudget}, #{actualCost},
+            #{isDemo}, #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.manage.managesystem.entity.ProjectEntity">
+        update project_info
+        set name = #{name},
+            description = #{description},
+            life_cycle_model = #{lifeCycleModel},
+            start_date = #{startDate},
+            end_date = #{endDate},
+            owner_id = #{ownerId},
+            planned_budget = #{plannedBudget},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="updateStatus">
+        update project_info
+        set status = #{status},
+            actual_start_date = case
+                when #{actualStartDate} is not null and actual_start_date is null then #{actualStartDate}
+                else actual_start_date
+            end,
+            actual_end_date = case
+                when #{actualEndDate} is not null then #{actualEndDate}
+                when #{clearActualEndDate} then null
+                else actual_end_date
+            end,
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{projectId}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDelete">
+        update project_info
+        set is_deleted = 1,
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{projectId}
+          and is_deleted = 0
+    </update>
+
+    <select id="selectCharterByProjectId" resultMap="ProjectCharterVoMap">
+        select pc.id,
+               pc.project_id,
+               p.name as project_name,
+               pc.objective,
+               pc.scope_summary,
+               pc.sponsor,
+               pc.approver,
+               pc.stakeholders,
+               pc.success_criteria
+        from project_charter pc
+                 inner join project_info p on p.id = pc.project_id
+        where pc.project_id = #{projectId}
+          and p.is_deleted = 0
+    </select>
+
+    <insert id="insertCharter" parameterType="com.manage.managesystem.entity.ProjectCharterEntity">
+        insert into project_charter (
+            id, project_id, objective, scope_summary, sponsor, approver,
+            stakeholders, success_criteria, created_by, created_at, updated_by, updated_at
+        ) values (
+            #{id}, #{projectId}, #{objective}, #{scopeSummary}, #{sponsor}, #{approver},
+            #{stakeholders}, #{successCriteria}, #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateCharter" parameterType="com.manage.managesystem.entity.ProjectCharterEntity">
+        update project_charter
+        set objective = #{objective},
+            scope_summary = #{scopeSummary},
+            sponsor = #{sponsor},
+            approver = #{approver},
+            stakeholders = #{stakeholders},
+            success_criteria = #{successCriteria},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+    </update>
+
+    <select id="selectDashboard" resultMap="ProjectDashboardMap">
+        select
+            (select count(1) from project_task t where t.project_id = #{projectId}) as task_total,
+            (select count(1) from project_task t where t.project_id = #{projectId} and t.status = 'DONE') as task_completed,
+            (select case
+                        when count(1) = 0 then 0
+                        else round(sum(case when t.status = 'DONE' then 1 else 0 end) * 100.0 / count(1), 2)
+                    end
+             from project_task t
+             where t.project_id = #{projectId}) as task_completion_rate,
+            (select planned_budget from project_info p where p.id = #{projectId} and p.is_deleted = 0) as planned_cost,
+            (select actual_cost from project_info p where p.id = #{projectId} and p.is_deleted = 0) as actual_cost,
+            (select count(1) from risk_register r where r.project_id = #{projectId} and r.is_deleted = 0 and r.status &lt;&gt; 'CLOSED') as open_risk_count,
+            (select count(1) from change_request c where c.project_id = #{projectId} and c.is_deleted = 0 and c.status in ('SUBMITTED', 'UNDER_REVIEW')) as pending_change_count
+    </select>
+
+    <select id="selectUpcomingMilestones" resultMap="MilestoneVoMap">
+        select m.id,
+               m.name,
+               m.description,
+               m.planned_date,
+               m.actual_date,
+               m.status,
+               m.owner_id,
+               u.real_name as owner_name
+        from milestone m
+                 left join sys_user u on u.id = m.owner_id
+        where m.project_id = #{projectId}
+        order by case when m.planned_date is null then 1 else 0 end, m.planned_date asc
+        limit 5
+    </select>
+
+</mapper>

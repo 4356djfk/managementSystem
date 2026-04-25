@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.TimesheetMapper">
+
+    <resultMap id="TimesheetEntityMap" type="com.manage.managesystem.entity.TimesheetEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="workDate" column="work_date"/>
+        <result property="hours" column="hours"/>
+        <result property="costRate" column="cost_rate"/>
+        <result property="laborCost" column="labor_cost"/>
+        <result property="description" column="description"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="TimesheetVoMap" type="com.manage.managesystem.vo.TimesheetVO">
+        <id property="id" column="id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="taskName" column="task_name"/>
+        <result property="userId" column="user_id"/>
+        <result property="userName" column="user_name"/>
+        <result property="workDate" column="work_date"/>
+        <result property="hours" column="hours"/>
+        <result property="costRate" column="cost_rate"/>
+        <result property="laborCost" column="labor_cost"/>
+        <result property="description" column="description"/>
+        <result property="status" column="status"/>
+    </resultMap>
+
+    <select id="selectByProjectId" resultMap="TimesheetVoMap">
+        select ts.id,
+               ts.task_id,
+               t.name as task_name,
+               ts.user_id,
+               u.real_name as user_name,
+               ts.work_date,
+               ts.hours,
+               ts.cost_rate,
+               ts.labor_cost,
+               ts.description,
+               ts.status
+        from timesheet ts
+                 left join project_task t on t.id = ts.task_id
+                 left join sys_user u on u.id = ts.user_id
+        where ts.project_id = #{projectId}
+          and ts.is_deleted = 0
+        <if test="query != null and query.userId != null">
+            and ts.user_id = #{query.userId}
+        </if>
+        <if test="query != null and query.taskId != null">
+            and ts.task_id = #{query.taskId}
+        </if>
+        <if test="query != null and query.startDate != null">
+            and ts.work_date <![CDATA[ >= ]]> #{query.startDate}
+        </if>
+        <if test="query != null and query.endDate != null">
+            and ts.work_date <![CDATA[ <= ]]> #{query.endDate}
+        </if>
+        order by ts.work_date desc, ts.created_at desc
+    </select>
+
+    <select id="selectById" resultMap="TimesheetVoMap">
+        select ts.id,
+               ts.task_id,
+               t.name as task_name,
+               ts.user_id,
+               u.real_name as user_name,
+               ts.work_date,
+               ts.hours,
+               ts.cost_rate,
+               ts.labor_cost,
+               ts.description,
+               ts.status
+        from timesheet ts
+                 left join project_task t on t.id = ts.task_id
+                 left join sys_user u on u.id = ts.user_id
+        where ts.id = #{id}
+          and ts.is_deleted = 0
+    </select>
+
+    <select id="selectEntityById" resultMap="TimesheetEntityMap">
+        select id,
+               project_id,
+               task_id,
+               user_id,
+               work_date,
+               hours,
+               cost_rate,
+               labor_cost,
+               description,
+               status,
+               created_at,
+               updated_at,
+               is_deleted
+        from timesheet
+        where id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insert" parameterType="com.manage.managesystem.entity.TimesheetEntity">
+        insert into timesheet (
+            id, project_id, task_id, user_id, work_date, hours, cost_rate, labor_cost, description, status,
+            created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{taskId}, #{userId}, #{workDate}, #{hours}, #{costRate}, #{laborCost}, #{description}, #{status},
+            #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.manage.managesystem.entity.TimesheetEntity">
+        update timesheet
+        set task_id = #{taskId},
+            work_date = #{workDate},
+            hours = #{hours},
+            cost_rate = #{costRate},
+            labor_cost = #{laborCost},
+            description = #{description},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and project_id = #{projectId}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDelete">
+        update timesheet
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="sumHoursByProjectId" resultType="java.math.BigDecimal">
+        select coalesce(sum(hours), 0)
+        from timesheet
+        where project_id = #{projectId}
+          and is_deleted = 0
+    </select>
+
+    <select id="sumHoursByTaskId" resultType="java.math.BigDecimal">
+        select coalesce(sum(hours), 0)
+        from timesheet
+        where project_id = #{projectId}
+          and task_id = #{taskId}
+          and is_deleted = 0
+    </select>
+
+    <select id="sumLaborCostByProjectId" resultType="java.math.BigDecimal">
+        select coalesce(sum(labor_cost), 0)
+        from timesheet
+        where project_id = #{projectId}
+          and is_deleted = 0
+    </select>
+
+    <select id="sumLaborCostByTaskId" resultType="java.math.BigDecimal">
+        select coalesce(sum(labor_cost), 0)
+        from timesheet
+        where project_id = #{projectId}
+          and task_id = #{taskId}
+          and is_deleted = 0
+    </select>
+
+    <select id="countDistinctUsers" resultType="int">
+        select count(distinct user_id)
+        from timesheet
+        where project_id = #{projectId}
+          and is_deleted = 0
+    </select>
+
+</mapper>

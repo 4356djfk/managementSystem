@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.CostMapper">
+
+    <resultMap id="CostPlanEntityMap" type="com.manage.managesystem.entity.CostPlanEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="type" column="cost_type"/>
+        <result property="phase" column="phase_name"/>
+        <result property="name" column="item_name"/>
+        <result property="plannedAmount" column="planned_amount"/>
+        <result property="currency" column="currency"/>
+        <result property="baselineVersion" column="baseline_version"/>
+        <result property="remark" column="remark"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="CostPlanVoMap" type="com.manage.managesystem.vo.CostPlanVO">
+        <id property="id" column="id"/>
+        <result property="type" column="cost_type"/>
+        <result property="name" column="item_name"/>
+        <result property="taskId" column="task_id"/>
+        <result property="taskName" column="task_name"/>
+        <result property="phase" column="phase_name"/>
+        <result property="plannedAmount" column="planned_amount"/>
+        <result property="currency" column="currency"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+
+    <resultMap id="CostActualVoMap" type="com.manage.managesystem.vo.CostActualVO">
+        <id property="id" column="id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="taskName" column="task_name"/>
+        <result property="sourceType" column="source_type"/>
+        <result property="amount" column="actual_amount"/>
+        <result property="currency" column="currency"/>
+        <result property="spendDate" column="occurred_date"/>
+        <result property="remark" column="description"/>
+    </resultMap>
+
+    <resultMap id="CostBaselineVoMap" type="com.manage.managesystem.vo.CostBaselineVO">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="baselineName" column="baseline_name"/>
+        <result property="snapshotJson" column="snapshot_json"/>
+        <result property="publishedAt" column="published_at"/>
+    </resultMap>
+
+    <resultMap id="EvmMetricVoMap" type="com.manage.managesystem.vo.EvmMetricVO">
+        <result property="pv" column="pv"/>
+        <result property="ev" column="ev"/>
+        <result property="ac" column="ac"/>
+        <result property="cv" column="cv"/>
+        <result property="sv" column="sv"/>
+        <result property="cpi" column="cpi"/>
+        <result property="spi" column="spi"/>
+    </resultMap>
+
+    <select id="selectPlansByProjectId" resultMap="CostPlanVoMap">
+        select cp.id,
+               cp.cost_type,
+               cp.item_name,
+               cp.task_id,
+               t.name as task_name,
+               cp.phase_name,
+               cp.planned_amount,
+               cp.currency,
+               cp.remark
+        from cost_plan cp
+                 left join project_task t on t.id = cp.task_id
+        where cp.project_id = #{projectId}
+          and cp.is_deleted = 0
+        order by cp.created_at desc
+    </select>
+
+    <select id="selectPlanById" resultMap="CostPlanVoMap">
+        select cp.id,
+               cp.cost_type,
+               cp.item_name,
+               cp.task_id,
+               t.name as task_name,
+               cp.phase_name,
+               cp.planned_amount,
+               cp.currency,
+               cp.remark
+        from cost_plan cp
+                 left join project_task t on t.id = cp.task_id
+        where cp.project_id = #{projectId}
+          and cp.id = #{id}
+          and cp.is_deleted = 0
+    </select>
+
+    <select id="selectPlanEntityById" resultMap="CostPlanEntityMap">
+        select id, project_id, task_id, cost_type, phase_name, item_name, planned_amount, currency,
+               baseline_version, remark, created_by, created_at, updated_by, updated_at, is_deleted
+        from cost_plan
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertPlan" parameterType="com.manage.managesystem.entity.CostPlanEntity">
+        insert into cost_plan (
+            id, project_id, task_id, cost_type, phase_name, item_name, planned_amount, currency,
+            baseline_version, remark, created_by, created_at, updated_by, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{taskId}, #{type}, #{phase}, #{name}, #{plannedAmount}, #{currency},
+            #{baselineVersion}, #{remark}, #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updatePlan" parameterType="com.manage.managesystem.entity.CostPlanEntity">
+        update cost_plan
+        set task_id = #{taskId},
+            cost_type = #{type},
+            phase_name = #{phase},
+            item_name = #{name},
+            planned_amount = #{plannedAmount},
+            currency = #{currency},
+            remark = #{remark},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeletePlan">
+        update cost_plan
+        set is_deleted = 1,
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="selectActualsByProjectId" resultMap="CostActualVoMap">
+        select ca.id,
+               ca.task_id,
+               t.name as task_name,
+               ca.source_type,
+               ca.actual_amount,
+               coalesce(cp.currency, 'CNY') as currency,
+               ca.occurred_date,
+               ca.description
+        from cost_actual ca
+                 left join project_task t on t.id = ca.task_id
+                 left join cost_plan cp on cp.id = ca.cost_plan_id
+        where ca.project_id = #{projectId}
+          and ca.is_deleted = 0
+        order by ca.occurred_date desc, ca.id desc
+    </select>
+
+    <select id="selectActualById" resultMap="CostActualVoMap">
+        select ca.id,
+               ca.task_id,
+               t.name as task_name,
+               ca.source_type,
+               ca.actual_amount,
+               coalesce(cp.currency, 'CNY') as currency,
+               ca.occurred_date,
+               ca.description
+        from cost_actual ca
+                 left join project_task t on t.id = ca.task_id
+                 left join cost_plan cp on cp.id = ca.cost_plan_id
+        where ca.project_id = #{projectId}
+          and ca.id = #{id}
+          and ca.is_deleted = 0
+    </select>
+
+    <select id="selectActualEntityById" resultType="com.manage.managesystem.entity.CostActualEntity">
+        select id, project_id, task_id, cost_plan_id, source_type, actual_amount, occurred_date,
+               description, recorder_id, created_at, updated_at, is_deleted
+        from cost_actual
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertActual" parameterType="com.manage.managesystem.entity.CostActualEntity">
+        insert into cost_actual (
+            id, project_id, task_id, cost_plan_id, source_type, actual_amount, occurred_date,
+            description, recorder_id, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{taskId}, #{costPlanId}, #{sourceType}, #{actualAmount}, #{occurredDate},
+            #{description}, #{recorderId}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="softDeleteActual">
+        update cost_actual
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="sumPlannedLaborAmountByTask" resultType="java.math.BigDecimal">
+        select coalesce(sum(planned_amount), 0)
+        from cost_plan
+        where project_id = #{projectId}
+          and task_id = #{taskId}
+          and cost_type = 'LABOR'
+          and is_deleted = 0
+    </select>
+
+    <select id="countBaselines" resultType="int">
+        select count(1)
+        from baseline_record
+        where project_id = #{projectId}
+          and baseline_type = #{baselineType}
+    </select>
+
+    <select id="selectBaselinesByProjectId" resultMap="CostBaselineVoMap">
+        select id, project_id, baseline_name, snapshot_json, published_at
+        from baseline_record
+        where project_id = #{projectId}
+          and baseline_type = #{baselineType}
+        order by published_at desc, id desc
+    </select>
+
+    <insert id="insertBaseline">
+        insert into baseline_record (
+            id, project_id, baseline_type, version_no, baseline_name, snapshot_json,
+            status, published_by, published_at, created_at
+        ) values (
+            #{id}, #{projectId}, #{baselineType}, #{versionNo}, #{baselineName}, #{snapshotJson},
+            #{status}, #{publishedBy}, #{publishedAt}, #{createdAt}
+        )
+    </insert>
+
+    <select id="selectBaselineById" resultMap="CostBaselineVoMap">
+        select id, project_id, baseline_name, snapshot_json, published_at
+        from baseline_record
+        where project_id = #{projectId}
+          and id = #{id}
+    </select>
+
+    <delete id="deleteBaseline">
+        delete from baseline_record
+        where project_id = #{projectId}
+          and id = #{id}
+    </delete>
+
+    <select id="selectEvmMetric" resultMap="EvmMetricVoMap">
+        select
+            pv,
+            ev,
+            ac,
+            ev - ac as cv,
+            ev - pv as sv,
+            case when ac = 0 then 0 else round(ev / ac, 4) end as cpi,
+            case when pv = 0 then 0 else round(ev / pv, 4) end as spi
+        from (
+                 select
+                     coalesce((select sum(cp.planned_amount) from cost_plan cp where cp.project_id = #{projectId} and cp.is_deleted = 0), 0) as pv,
+                     coalesce((select sum(cp.planned_amount * coalesce(t.progress, 0) / 100)
+                               from cost_plan cp
+                                        left join project_task t on t.id = cp.task_id and t.is_deleted = 0
+                               where cp.project_id = #{projectId} and cp.is_deleted = 0), 0) as ev,
+                     coalesce((select sum(ca.actual_amount)
+                               from cost_actual ca
+                               where ca.project_id = #{projectId}
+                                 and ca.is_deleted = 0
+                                 and ca.source_type <![CDATA[ <> ]]> 'TIMESHEET'), 0)
+                     + coalesce((select sum(ts.labor_cost)
+                                 from timesheet ts
+                                 where ts.project_id = #{projectId}
+                                   and ts.is_deleted = 0), 0) as ac
+             ) metrics
+    </select>
+
+</mapper>

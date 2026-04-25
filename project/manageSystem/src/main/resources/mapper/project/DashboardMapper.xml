@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.DashboardMapper">
+
+    <resultMap id="DashboardHomeMap" type="com.manage.managesystem.vo.DashboardHomeVO">
+        <result property="projectCount" column="project_count"/>
+        <result property="inProgressProjectCount" column="in_progress_project_count"/>
+        <result property="taskTotal" column="task_total"/>
+        <result property="taskCompleted" column="task_completed"/>
+        <result property="taskCompletionRate" column="task_completion_rate"/>
+        <result property="plannedCost" column="planned_cost"/>
+        <result property="actualCost" column="actual_cost"/>
+        <result property="openRiskCount" column="open_risk_count"/>
+        <result property="pendingChangeCount" column="pending_change_count"/>
+    </resultMap>
+
+    <resultMap id="MilestoneVoMap" type="com.manage.managesystem.vo.MilestoneVO">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="description" column="description"/>
+        <result property="plannedDate" column="planned_date"/>
+        <result property="actualDate" column="actual_date"/>
+        <result property="status" column="status"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="ownerName" column="owner_name"/>
+    </resultMap>
+
+    <select id="selectHome" resultMap="DashboardHomeMap">
+        select
+            (select count(1) from project_info p where p.is_deleted = 0) as project_count,
+            (select count(1) from project_info p where p.is_deleted = 0 and p.status in ('IN_PROGRESS', 'MONITORING')) as in_progress_project_count,
+            (select count(1) from project_task t where t.is_deleted = 0) as task_total,
+            (select count(1) from project_task t where t.is_deleted = 0 and t.status = 'DONE') as task_completed,
+            (select case
+                        when count(1) = 0 then 0
+                        else round(sum(case when t.status = 'DONE' then 1 else 0 end) * 100.0 / count(1), 2)
+                    end
+             from project_task t
+             where t.is_deleted = 0) as task_completion_rate,
+            (select coalesce(sum(p.planned_budget), 0) from project_info p where p.is_deleted = 0) as planned_cost,
+            (select coalesce(sum(p.actual_cost), 0) from project_info p where p.is_deleted = 0) as actual_cost,
+            (select count(1) from risk_register r where r.is_deleted = 0 and r.status &lt;&gt; 'CLOSED') as open_risk_count,
+            (select count(1) from change_request c where c.is_deleted = 0 and c.status in ('SUBMITTED', 'UNDER_REVIEW')) as pending_change_count
+    </select>
+
+    <select id="selectUpcomingMilestones" resultMap="MilestoneVoMap">
+        select m.id,
+               m.name,
+               m.description,
+               m.planned_date,
+               m.actual_date,
+               m.status,
+               m.owner_id,
+               u.real_name as owner_name
+        from milestone m
+                 left join sys_user u on u.id = m.owner_id
+                 inner join project_info p on p.id = m.project_id and p.is_deleted = 0
+        where m.is_deleted = 0
+        order by case when m.planned_date is null then 1 else 0 end, m.planned_date asc, m.id desc
+        limit 5
+    </select>
+
+</mapper>

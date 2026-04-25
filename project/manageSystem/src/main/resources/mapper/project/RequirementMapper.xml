@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.RequirementMapper">
+
+    <resultMap id="RequirementEntityMap" type="com.manage.managesystem.entity.RequirementEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="wbsId" column="wbs_id"/>
+        <result property="requirementCode" column="requirement_code"/>
+        <result property="title" column="title"/>
+        <result property="requirementType" column="requirement_type"/>
+        <result property="priority" column="priority"/>
+        <result property="status" column="status"/>
+        <result property="description" column="description"/>
+        <result property="proposerId" column="proposer_id"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="RequirementVoMap" type="com.manage.managesystem.vo.RequirementVO">
+        <id property="id" column="id"/>
+        <result property="requirementCode" column="requirement_code"/>
+        <result property="title" column="title"/>
+        <result property="requirementType" column="requirement_type"/>
+        <result property="priority" column="priority"/>
+        <result property="status" column="status"/>
+        <result property="description" column="description"/>
+        <result property="wbsId" column="wbs_id"/>
+        <result property="wbsName" column="wbs_name"/>
+        <result property="proposerId" column="proposer_id"/>
+        <result property="proposerName" column="proposer_name"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectByProjectId" resultMap="RequirementVoMap">
+        select r.id,
+               r.requirement_code,
+               r.title,
+               r.requirement_type,
+               r.priority,
+               r.status,
+               r.description,
+               r.wbs_id,
+               w.node_name as wbs_name,
+               r.proposer_id,
+               u.real_name as proposer_name,
+               r.created_at
+        from requirement_info r
+                 left join wbs_node w on w.id = r.wbs_id
+                 left join sys_user u on u.id = r.proposer_id
+        where r.project_id = #{projectId}
+          and r.is_deleted = 0
+        <if test="query != null and query.type != null and query.type != ''">
+            and r.requirement_type = #{query.type}
+        </if>
+        <if test="query != null and query.priority != null and query.priority != ''">
+            and r.priority = #{query.priority}
+        </if>
+        <if test="query != null and query.status != null and query.status != ''">
+            and r.status = #{query.status}
+        </if>
+        order by r.created_at desc
+    </select>
+
+    <select id="selectById" resultMap="RequirementVoMap">
+        select r.id,
+               r.requirement_code,
+               r.title,
+               r.requirement_type,
+               r.priority,
+               r.status,
+               r.description,
+               r.wbs_id,
+               w.node_name as wbs_name,
+               r.proposer_id,
+               u.real_name as proposer_name,
+               r.created_at
+        from requirement_info r
+                 left join wbs_node w on w.id = r.wbs_id
+                 left join sys_user u on u.id = r.proposer_id
+        where r.id = #{id}
+          and r.is_deleted = 0
+    </select>
+
+    <select id="selectEntityById" resultMap="RequirementEntityMap">
+        select id,
+               project_id,
+               wbs_id,
+               requirement_code,
+               title,
+               requirement_type,
+               priority,
+               status,
+               description,
+               proposer_id,
+               created_by,
+               created_at,
+               updated_by,
+               updated_at,
+               is_deleted
+        from requirement_info
+        where id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insert" parameterType="com.manage.managesystem.entity.RequirementEntity">
+        insert into requirement_info (
+            id, project_id, wbs_id, requirement_code, title, requirement_type, priority, status,
+            description, proposer_id, created_by, created_at, updated_by, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{wbsId}, #{requirementCode}, #{title}, #{requirementType}, #{priority}, #{status},
+            #{description}, #{proposerId}, #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.manage.managesystem.entity.RequirementEntity">
+        update requirement_info
+        set wbs_id = #{wbsId},
+            title = #{title},
+            requirement_type = #{requirementType},
+            priority = #{priority},
+            status = #{status},
+            description = #{description},
+            proposer_id = #{proposerId},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and project_id = #{projectId}
+          and is_deleted = 0
+    </update>
+
+</mapper>

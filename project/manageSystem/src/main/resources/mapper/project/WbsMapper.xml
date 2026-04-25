@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.WbsMapper">
+
+    <resultMap id="WbsNodeEntityMap" type="com.manage.managesystem.entity.WbsNodeEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="nodeCode" column="node_code"/>
+        <result property="nodeName" column="node_name"/>
+        <result property="description" column="description"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="levelNo" column="level_no"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="WbsNodeVoMap" type="com.manage.managesystem.vo.WbsNodeVO">
+        <id property="id" column="id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="code" column="node_code"/>
+        <result property="name" column="node_name"/>
+        <result property="description" column="description"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="ownerName" column="owner_name"/>
+        <result property="levelNo" column="level_no"/>
+        <result property="sortOrder" column="sort_order"/>
+    </resultMap>
+
+    <select id="selectByProjectId" resultMap="WbsNodeVoMap">
+        select w.id,
+               w.parent_id,
+               w.node_code,
+               w.node_name,
+               w.description,
+               w.owner_id,
+               u.real_name as owner_name,
+               w.level_no,
+               w.sort_order
+        from wbs_node w
+                 left join sys_user u on u.id = w.owner_id
+        where w.project_id = #{projectId}
+          and w.is_deleted = 0
+        order by w.level_no asc, w.sort_order asc, w.id asc
+    </select>
+
+    <select id="selectById" resultMap="WbsNodeVoMap">
+        select w.id,
+               w.parent_id,
+               w.node_code,
+               w.node_name,
+               w.description,
+               w.owner_id,
+               u.real_name as owner_name,
+               w.level_no,
+               w.sort_order
+        from wbs_node w
+                 left join sys_user u on u.id = w.owner_id
+        where w.id = #{id}
+          and w.is_deleted = 0
+    </select>
+
+    <select id="selectEntityById" resultMap="WbsNodeEntityMap">
+        select id,
+               project_id,
+               parent_id,
+               node_code,
+               node_name,
+               description,
+               owner_id,
+               sort_order,
+               level_no,
+               created_by,
+               created_at,
+               updated_by,
+               updated_at,
+               is_deleted
+        from wbs_node
+        where id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insert" parameterType="com.manage.managesystem.entity.WbsNodeEntity">
+        insert into wbs_node (
+            id, project_id, parent_id, node_code, node_name, description, owner_id, sort_order, level_no,
+            created_by, created_at, updated_by, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{parentId}, #{nodeCode}, #{nodeName}, #{description}, #{ownerId}, #{sortOrder}, #{levelNo},
+            #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.manage.managesystem.entity.WbsNodeEntity">
+        update wbs_node
+        set parent_id = #{parentId},
+            node_code = #{nodeCode},
+            node_name = #{nodeName},
+            description = #{description},
+            owner_id = #{ownerId},
+            sort_order = #{sortOrder},
+            level_no = #{levelNo},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and project_id = #{projectId}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDelete">
+        update wbs_node
+        set is_deleted = 1,
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="countChildren" resultType="int">
+        select count(1)
+        from wbs_node
+        where project_id = #{projectId}
+          and parent_id = #{parentId}
+          and is_deleted = 0
+    </select>
+
+    <select id="countReferencedRequirements" resultType="int">
+        select count(1)
+        from requirement_info
+        where project_id = #{projectId}
+          and wbs_id = #{wbsId}
+          and is_deleted = 0
+    </select>
+
+    <select id="countReferencedTasks" resultType="int">
+        select count(1)
+        from project_task
+        where project_id = #{projectId}
+          and wbs_id = #{wbsId}
+          and is_deleted = 0
+    </select>
+
+</mapper>

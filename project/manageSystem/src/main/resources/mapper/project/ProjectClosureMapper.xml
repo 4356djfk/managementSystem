@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.ProjectClosureMapper">
+
+    <resultMap id="ArchiveVoMap" type="com.manage.managesystem.vo.ArchiveItemVO">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="archiveType" column="archive_type"/>
+        <result property="itemName" column="item_name"/>
+        <result property="attachmentId" column="attachment_id"/>
+        <result property="repositoryUrl" column="repository_url"/>
+        <result property="status" column="status"/>
+        <result property="archivedBy" column="archived_by"/>
+        <result property="archivedAt" column="archived_at"/>
+    </resultMap>
+
+    <resultMap id="LessonEntityMap" type="com.manage.managesystem.entity.LessonLearnedEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="category" column="category"/>
+        <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="authorId" column="author_id"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="LessonVoMap" type="com.manage.managesystem.vo.LessonLearnedVO">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="category" column="category"/>
+        <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="authorId" column="author_id"/>
+        <result property="authorName" column="author_name"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="ReportVoMap" type="com.manage.managesystem.vo.ReportVO">
+        <id property="id" column="id"/>
+        <result property="reportType" column="report_type"/>
+        <result property="title" column="title"/>
+        <result property="startDate" column="start_date"/>
+        <result property="endDate" column="end_date"/>
+        <result property="status" column="status"/>
+        <result property="attachmentId" column="attachment_id"/>
+        <result property="attachmentUrl" column="attachment_url"/>
+        <result property="generatedBy" column="generated_by"/>
+        <result property="generatedByName" column="generated_by_name"/>
+        <result property="generatedAt" column="generated_at"/>
+    </resultMap>
+
+    <resultMap id="AttachmentVoMap" type="com.manage.managesystem.vo.AttachmentVO">
+        <id property="id" column="id"/>
+        <result property="fileName" column="file_name"/>
+        <result property="fileUrl" column="file_url"/>
+        <result property="fileSize" column="file_size"/>
+        <result property="fileType" column="file_type"/>
+        <result property="bizType" column="biz_type"/>
+        <result property="bizId" column="biz_id"/>
+        <result property="uploadedBy" column="uploaded_by"/>
+        <result property="uploadedAt" column="uploaded_at"/>
+    </resultMap>
+
+    <select id="selectArchivesByProjectId" resultMap="ArchiveVoMap">
+        select id, project_id, archive_type, item_name, attachment_id, repository_url, status, archived_by, archived_at
+        from archive_item
+        where project_id = #{projectId}
+          and is_deleted = 0
+        order by created_at desc
+    </select>
+
+    <insert id="insertArchive" parameterType="com.manage.managesystem.entity.ArchiveItemEntity">
+        insert into archive_item (
+            id, project_id, archive_type, item_name, attachment_id, repository_url, status,
+            archived_by, archived_at, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{archiveType}, #{itemName}, #{attachmentId}, #{repositoryUrl}, #{status},
+            #{archivedBy}, #{archivedAt}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="softDeleteArchive">
+        update archive_item
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="selectLessonsByProjectId" resultMap="LessonVoMap">
+        select l.id,
+               l.project_id,
+               l.category,
+               l.title,
+               l.content,
+               l.author_id,
+               u.real_name as author_name,
+               l.created_at
+        from lesson_learned l
+                 left join sys_user u on u.id = l.author_id
+        where l.project_id = #{projectId}
+          and l.is_deleted = 0
+        order by l.created_at desc
+    </select>
+
+    <select id="selectLessonById" resultMap="LessonVoMap">
+        select l.id,
+               l.project_id,
+               l.category,
+               l.title,
+               l.content,
+               l.author_id,
+               u.real_name as author_name,
+               l.created_at
+        from lesson_learned l
+                 left join sys_user u on u.id = l.author_id
+        where l.project_id = #{projectId}
+          and l.id = #{id}
+          and l.is_deleted = 0
+    </select>
+
+    <select id="selectLessonEntityById" resultMap="LessonEntityMap">
+        select id, project_id, category, title, content, author_id, created_at, updated_at, is_deleted
+        from lesson_learned
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertLesson" parameterType="com.manage.managesystem.entity.LessonLearnedEntity">
+        insert into lesson_learned (
+            id, project_id, category, title, content, author_id, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{category}, #{title}, #{content}, #{authorId}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updateLesson" parameterType="com.manage.managesystem.entity.LessonLearnedEntity">
+        update lesson_learned
+        set category = #{category},
+            title = #{title},
+            content = #{content},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeleteLesson">
+        update lesson_learned
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="selectReportsByProjectId" resultMap="ReportVoMap">
+        select r.id,
+               r.report_type,
+               r.title,
+               r.start_date,
+               r.end_date,
+               r.status,
+               r.attachment_id,
+               a.file_url as attachment_url,
+               r.generated_by,
+               u.real_name as generated_by_name,
+               r.generated_at
+        from report_record r
+                 left join attachment_info a on a.id = r.attachment_id and a.is_deleted = 0
+                 left join sys_user u on u.id = r.generated_by
+        where r.project_id = #{projectId}
+          and r.is_deleted = 0
+        order by r.generated_at desc
+    </select>
+
+    <select id="selectReportById" resultMap="ReportVoMap">
+        select r.id,
+               r.report_type,
+               r.title,
+               r.start_date,
+               r.end_date,
+               r.status,
+               r.attachment_id,
+               a.file_url as attachment_url,
+               r.generated_by,
+               u.real_name as generated_by_name,
+               r.generated_at
+        from report_record r
+                 left join attachment_info a on a.id = r.attachment_id and a.is_deleted = 0
+                 left join sys_user u on u.id = r.generated_by
+        where r.project_id = #{projectId}
+          and r.id = #{id}
+          and r.is_deleted = 0
+    </select>
+
+    <insert id="insertReport" parameterType="com.manage.managesystem.entity.ReportRecordEntity">
+        insert into report_record (
+            id, project_id, report_type, title, start_date, end_date, content_json,
+            attachment_id, generated_by, generated_at, status, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{reportType}, #{title}, #{startDate}, #{endDate}, #{contentJson},
+            #{attachmentId}, #{generatedBy}, #{generatedAt}, #{status}, #{deleted}
+        )
+    </insert>
+
+    <select id="selectAttachmentById" resultMap="AttachmentVoMap">
+        select id, file_name, file_url, file_size, file_type, biz_type, biz_id, uploaded_by, uploaded_at
+        from attachment_info
+        where id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <update id="softDeleteAttachment">
+        update attachment_info
+        set is_deleted = 1
+        where id = #{id}
+          and is_deleted = 0
+    </update>
+
+</mapper>

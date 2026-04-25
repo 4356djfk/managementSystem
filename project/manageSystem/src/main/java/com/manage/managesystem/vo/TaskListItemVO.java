@@ -1,0 +1,51 @@
+package com.manage.managesystem.vo;
+
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+/**
+ * 浠诲姟鍒楄〃椤筕O
+ */
+@Data
+public class TaskListItemVO {
+
+    private Long id;
+
+    private String taskCode;
+
+    private String name;
+
+    private String status;
+
+    private String priority;
+
+    private BigDecimal progress;
+
+    private Long assigneeId;
+
+    private String assigneeName;
+
+    private LocalDateTime plannedStartDate;
+
+    private LocalDateTime plannedEndDate;
+
+    private LocalDateTime actualStartDate;
+
+    private LocalDateTime actualEndDate;
+
+    private BigDecimal plannedHours;
+
+    private BigDecimal actualHours;
+
+    private Integer sortOrder;
+
+    private String remark;
+
+    private String description;
+
+    private Long parentTaskId;
+
+    private String taskType;
+}

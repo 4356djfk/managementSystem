@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.ProjectViewMapper">
+
+    <resultMap id="CalendarEventVoMap" type="com.manage.managesystem.vo.CalendarEventVO">
+        <id property="id" column="id"/>
+        <result property="eventType" column="event_type"/>
+        <result property="title" column="title"/>
+        <result property="startTime" column="start_time"/>
+        <result property="endTime" column="end_time"/>
+        <result property="projectId" column="project_id"/>
+        <result property="bizId" column="biz_id"/>
+    </resultMap>
+
+    <resultMap id="ClosureCheckVoMap" type="com.manage.managesystem.vo.ClosureCheckVO">
+        <result property="acceptanceCompleted" column="acceptance_completed"/>
+        <result property="archiveCompleted" column="archive_completed"/>
+        <result property="openRisks" column="open_risks"/>
+        <result property="pendingChanges" column="pending_changes"/>
+        <result property="requiredReportsReady" column="required_reports_ready"/>
+    </resultMap>
+
+    <select id="selectProjectCalendar" resultMap="CalendarEventVoMap">
+        select t.id,
+               'TASK' as event_type,
+               t.name as title,
+               t.planned_start_date as start_time,
+               t.planned_end_date as end_time,
+               t.project_id,
+               t.id as biz_id
+        from project_task t
+        where t.project_id = #{projectId}
+          and t.is_deleted = 0
+          and (t.planned_start_date is not null or t.planned_end_date is not null)
+        union all
+        select m.id,
+               'MILESTONE' as event_type,
+               m.name as title,
+               m.planned_date as start_time,
+               m.planned_date as end_time,
+               m.project_id,
+               m.id as biz_id
+        from milestone m
+        where m.project_id = #{projectId}
+          and m.is_deleted = 0
+          and m.planned_date is not null
+        order by start_time asc, id asc
+    </select>
+
+    <select id="selectMyCalendar" resultMap="CalendarEventVoMap">
+        select t.id,
+               'TASK' as event_type,
+               t.name as title,
+               t.planned_start_date as start_time,
+               t.planned_end_date as end_time,
+               t.project_id,
+               t.id as biz_id
+        from project_task t
+        where t.assignee_id = #{userId}
+          and t.is_deleted = 0
+          and (t.planned_start_date is not null or t.planned_end_date is not null)
+        union all
+        select m.id,
+               'MILESTONE' as event_type,
+               m.name as title,
+               m.planned_date as start_time,
+               m.planned_date as end_time,
+               m.project_id,
+               m.id as biz_id
+        from milestone m
+        where m.owner_id = #{userId}
+          and m.is_deleted = 0
+          and m.planned_date is not null
+        order by start_time asc, id asc
+    </select>
+
+    <select id="selectClosureCheck" resultMap="ClosureCheckVoMap">
+        select
+            case
+                when exists(select 1 from acceptance_item ai where ai.project_id = #{projectId} and ai.is_deleted = 0)
+                    and not exists(select 1 from acceptance_item ai where ai.project_id = #{projectId} and ai.is_deleted = 0 and ai.status &lt;&gt; 'COMPLETED')
+                    then true
+                else false
+            end as acceptance_completed,
+            case
+                when exists(select 1 from archive_item ar where ar.project_id = #{projectId} and ar.is_deleted = 0)
+                    and not exists(select 1 from archive_item ar where ar.project_id = #{projectId} and ar.is_deleted = 0 and ar.status &lt;&gt; 'ARCHIVED')
+                    then true
+                else false
+            end as archive_completed,
+            (select count(1) from risk_register r where r.project_id = #{projectId} and r.is_deleted = 0 and r.status &lt;&gt; 'CLOSED') as open_risks,
+            (select count(1) from change_request c where c.project_id = #{projectId} and c.is_deleted = 0 and c.status in ('SUBMITTED', 'UNDER_REVIEW')) as pending_changes,
+            case
+                when exists(select 1 from report_record rr where rr.project_id = #{projectId} and rr.is_deleted = 0 and rr.status = 'GENERATED')
+                    then true
+                else false
+            end as required_reports_ready
+    </select>
+
+</mapper>

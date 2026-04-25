@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.ChangeRequestMapper">
+
+    <resultMap id="ChangeRequestEntityMap" type="com.manage.managesystem.entity.ChangeRequestEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="changeCode" column="change_code"/>
+        <result property="title" column="title"/>
+        <result property="changeType" column="change_type"/>
+        <result property="priority" column="priority"/>
+        <result property="status" column="status"/>
+        <result property="proposerId" column="proposer_id"/>
+        <result property="approverId" column="approver_id"/>
+        <result property="reason" column="reason"/>
+        <result property="impactAnalysis" column="impact_analysis"/>
+        <result property="decisionComment" column="decision_comment"/>
+        <result property="submittedAt" column="submitted_at"/>
+        <result property="decidedAt" column="decided_at"/>
+        <result property="implementedAt" column="implemented_at"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="ChangeRequestVoMap" type="com.manage.managesystem.vo.ChangeRequestVO">
+        <id property="id" column="id"/>
+        <result property="changeCode" column="change_code"/>
+        <result property="title" column="title"/>
+        <result property="changeType" column="change_type"/>
+        <result property="priority" column="priority"/>
+        <result property="status" column="status"/>
+        <result property="proposerId" column="proposer_id"/>
+        <result property="proposerName" column="proposer_name"/>
+        <result property="approverId" column="approver_id"/>
+        <result property="approverName" column="approver_name"/>
+        <result property="reason" column="reason"/>
+        <result property="impactAnalysis" column="impact_analysis"/>
+        <result property="decisionComment" column="decision_comment"/>
+        <result property="submittedAt" column="submitted_at"/>
+        <result property="decidedAt" column="decided_at"/>
+    </resultMap>
+
+    <select id="selectByProjectId" resultMap="ChangeRequestVoMap">
+        select c.id,
+               c.change_code,
+               c.title,
+               c.change_type,
+               c.priority,
+               c.status,
+               c.proposer_id,
+               proposer.real_name as proposer_name,
+               c.approver_id,
+               approver.real_name as approver_name,
+               c.reason,
+               c.impact_analysis,
+               c.decision_comment,
+               c.submitted_at,
+               c.decided_at
+        from change_request c
+                 left join sys_user proposer on proposer.id = c.proposer_id
+                 left join sys_user approver on approver.id = c.approver_id
+        where c.project_id = #{projectId}
+          and c.is_deleted = 0
+        <if test="query != null and query.status != null and query.status != ''">
+            and c.status = #{query.status}
+        </if>
+        <if test="query != null and query.priority != null and query.priority != ''">
+            and c.priority = #{query.priority}
+        </if>
+        <if test="query != null and query.proposerId != null">
+            and c.proposer_id = #{query.proposerId}
+        </if>
+        order by c.created_at desc
+    </select>
+
+    <resultMap id="ChangeRequestLogVoMap" type="com.manage.managesystem.vo.ChangeRequestLogVO">
+        <id property="id" column="id"/>
+        <result property="changeRequestId" column="change_request_id"/>
+        <result property="action" column="action"/>
+        <result property="fromStatus" column="from_status"/>
+        <result property="toStatus" column="to_status"/>
+        <result property="operatorId" column="operator_id"/>
+        <result property="operatorName" column="operator_name"/>
+        <result property="comment" column="comment"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectById" resultMap="ChangeRequestVoMap">
+        select c.id,
+               c.change_code,
+               c.title,
+               c.change_type,
+               c.priority,
+               c.status,
+               c.proposer_id,
+               proposer.real_name as proposer_name,
+               c.approver_id,
+               approver.real_name as approver_name,
+               c.reason,
+               c.impact_analysis,
+               c.decision_comment,
+               c.submitted_at,
+               c.decided_at
+        from change_request c
+                 left join sys_user proposer on proposer.id = c.proposer_id
+                 left join sys_user approver on approver.id = c.approver_id
+        where c.id = #{id}
+          and c.is_deleted = 0
+    </select>
+
+    <select id="selectEntityById" resultMap="ChangeRequestEntityMap">
+        select id,
+               project_id,
+               change_code,
+               title,
+               change_type,
+               priority,
+               status,
+               proposer_id,
+               approver_id,
+               reason,
+               impact_analysis,
+               decision_comment,
+               submitted_at,
+               decided_at,
+               implemented_at,
+               created_by,
+               created_at,
+               updated_by,
+               updated_at,
+               is_deleted
+        from change_request
+        where id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insert" parameterType="com.manage.managesystem.entity.ChangeRequestEntity">
+        insert into change_request (
+            id, project_id, change_code, title, change_type, priority, status, proposer_id, approver_id,
+            reason, impact_analysis, decision_comment, submitted_at, decided_at, implemented_at,
+            created_by, created_at, updated_by, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{changeCode}, #{title}, #{changeType}, #{priority}, #{status}, #{proposerId}, #{approverId},
+            #{reason}, #{impactAnalysis}, #{decisionComment}, #{submittedAt}, #{decidedAt}, #{implementedAt},
+            #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updateApproval">
+        update change_request
+        set status = #{status},
+            approver_id = #{approverId},
+            decision_comment = #{decisionComment},
+            decided_at = #{decidedAt},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <insert id="insertLog" parameterType="com.manage.managesystem.entity.ChangeRequestLogEntity">
+        insert into change_request_log (
+            id, change_request_id, action, from_status, to_status, operator_id, comment, created_by, created_at, updated_by, updated_at
+        ) values (
+            #{id}, #{changeRequestId}, #{action}, #{fromStatus}, #{toStatus}, #{operatorId}, #{comment}, #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt}
+        )
+    </insert>
+
+    <select id="selectLogsByRequestId" resultMap="ChangeRequestLogVoMap">
+        select l.id,
+               l.change_request_id,
+               l.action,
+               l.from_status,
+               l.to_status,
+               l.operator_id,
+               u.real_name as operator_name,
+               l.comment,
+               l.created_at
+        from change_request_log l
+                 left join sys_user u on u.id = l.operator_id
+        where l.change_request_id = #{changeRequestId}
+        order by l.created_at desc
+    </select>
+
+</mapper>

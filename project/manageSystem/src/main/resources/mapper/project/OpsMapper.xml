@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.OpsMapper">
+
+    <resultMap id="AcceptanceItemVoMap" type="com.manage.managesystem.vo.AcceptanceItemVO">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="itemName" column="item_name"/>
+        <result property="itemType" column="item_type"/>
+        <result property="description" column="description"/>
+        <result property="status" column="status"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="ownerName" column="owner_name"/>
+        <result property="attachmentId" column="attachment_id"/>
+        <result property="acceptedAt" column="accepted_at"/>
+    </resultMap>
+
+    <resultMap id="NotificationVoMap" type="com.manage.managesystem.vo.NotificationVO">
+        <id property="id" column="id"/>
+        <result property="receiverId" column="receiver_id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="bizType" column="biz_type"/>
+        <result property="bizId" column="biz_id"/>
+        <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="readStatus" column="read_status"/>
+        <result property="readAt" column="read_at"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="ExportTaskVoMap" type="com.manage.managesystem.vo.ExportTaskVO">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="moduleName" column="module_name"/>
+        <result property="exportFormat" column="export_format"/>
+        <result property="status" column="status"/>
+        <result property="fileAttachmentId" column="file_attachment_id"/>
+        <result property="requestedBy" column="requested_by"/>
+        <result property="requestedAt" column="requested_at"/>
+        <result property="finishedAt" column="finished_at"/>
+    </resultMap>
+
+    <resultMap id="SearchResultVoMap" type="com.manage.managesystem.vo.SearchResultVO">
+        <id property="id" column="id"/>
+        <result property="type" column="type"/>
+        <result property="title" column="title"/>
+        <result property="summary" column="summary"/>
+        <result property="projectId" column="project_id"/>
+        <result property="projectName" column="project_name"/>
+    </resultMap>
+
+    <resultMap id="AuditLogVoMap" type="com.manage.managesystem.vo.AuditLogVO">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="moduleName" column="module_name"/>
+        <result property="bizId" column="biz_id"/>
+        <result property="action" column="action"/>
+        <result property="operatorId" column="operator_id"/>
+        <result property="operatorName" column="operator_name"/>
+        <result property="requestMethod" column="request_method"/>
+        <result property="requestPath" column="request_path"/>
+        <result property="resultCode" column="result_code"/>
+        <result property="ipAddress" column="ip_address"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectAcceptanceItems" resultMap="AcceptanceItemVoMap">
+        select ai.id,
+               ai.project_id,
+               ai.item_name,
+               json_unquote(json_extract(ai.remark, '$.itemType')) as item_type,
+               ai.description,
+               ai.status,
+               ai.checker_id as owner_id,
+               u.real_name as owner_name,
+               cast(json_unquote(json_extract(ai.remark, '$.attachmentId')) as signed) as attachment_id,
+               ai.checked_at as accepted_at
+        from acceptance_item ai
+                 left join sys_user u on u.id = ai.checker_id
+        where ai.project_id = #{projectId}
+          and ai.is_deleted = 0
+        order by ai.created_at desc
+    </select>
+
+    <select id="selectAcceptanceItemById" resultMap="AcceptanceItemVoMap">
+        select ai.id,
+               ai.project_id,
+               ai.item_name,
+               json_unquote(json_extract(ai.remark, '$.itemType')) as item_type,
+               ai.description,
+               ai.status,
+               ai.checker_id as owner_id,
+               u.real_name as owner_name,
+               cast(json_unquote(json_extract(ai.remark, '$.attachmentId')) as signed) as attachment_id,
+               ai.checked_at as accepted_at
+        from acceptance_item ai
+                 left join sys_user u on u.id = ai.checker_id
+        where ai.project_id = #{projectId}
+          and ai.id = #{id}
+          and ai.is_deleted = 0
+    </select>
+
+    <insert id="insertAcceptanceItem">
+        insert into acceptance_item (
+            id, project_id, item_name, description, status, checker_id, checked_at, remark, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{itemName}, #{description}, #{status}, #{checkerId}, #{checkedAt}, #{remark}, #{createdAt}, #{updatedAt}, 0
+        )
+    </insert>
+
+    <update id="updateAcceptanceItem">
+        update acceptance_item
+        set item_name = #{itemName},
+            description = #{description},
+            status = #{status},
+            checker_id = #{checkerId},
+            checked_at = #{checkedAt},
+            remark = #{remark},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeleteAcceptanceItem">
+        update acceptance_item
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="selectNotifications" resultMap="NotificationVoMap">
+        select id, receiver_id, project_id, biz_type, biz_id, title, content, read_status, read_at, created_at
+        from notification
+        where receiver_id = #{receiverId}
+        order by created_at desc
+    </select>
+
+    <update id="markNotificationRead">
+        update notification
+        set read_status = 'READ',
+            read_at = #{readAt}
+        where id = #{id}
+          and receiver_id = #{receiverId}
+          and read_status = 'UNREAD'
+    </update>
+
+    <update id="markAllNotificationsRead">
+        update notification
+        set read_status = 'READ',
+            read_at = #{readAt}
+        where receiver_id = #{receiverId}
+          and read_status = 'UNREAD'
+    </update>
+
+    <insert id="insertExportTask" parameterType="com.manage.managesystem.entity.ExportTaskEntity">
+        insert into export_task (
+            id, project_id, module_name, export_format, filter_json, status, file_attachment_id,
+            requested_by, requested_at, finished_at
+        ) values (
+            #{id}, #{projectId}, #{moduleName}, #{exportFormat}, #{filterJson}, #{status}, #{fileAttachmentId},
+            #{requestedBy}, #{requestedAt}, #{finishedAt}
+        )
+    </insert>
+
+    <update id="updateExportTaskResult">
+        update export_task
+        set status = #{status},
+            file_attachment_id = #{fileAttachmentId},
+            finished_at = #{finishedAt}
+        where id = #{id}
+    </update>
+
+    <insert id="insertAttachment" parameterType="com.manage.managesystem.entity.AttachmentEntity">
+        insert into attachment_info (
+            id, file_name, file_url, file_size, file_type, biz_type, biz_id, uploaded_by, uploaded_at, is_deleted
+        ) values (
+            #{id}, #{fileName}, #{fileUrl}, #{fileSize}, #{fileType}, #{bizType}, #{bizId}, #{uploadedBy}, #{uploadedAt}, #{deleted}
+        )
+    </insert>
+
+    <select id="selectExportTaskById" resultMap="ExportTaskVoMap">
+        select id, project_id, module_name, export_format, status, file_attachment_id, requested_by, requested_at, finished_at
+        from export_task
+        where id = #{id}
+    </select>
+
+    <select id="search" resultMap="SearchResultVoMap">
+        select *
+        from (
+                 select p.id,
+                        'PROJECT' as type,
+                        p.name as title,
+                        p.description as summary,
+                        p.id as project_id,
+                        p.name as project_name
+                 from project_info p
+                 where p.is_deleted = 0
+                   and (#{projectId} is null or p.id = #{projectId})
+                   and (#{type} is null or #{type} = '' or #{type} = 'PROJECT')
+                   and (#{keyword} is null or #{keyword} = '' or p.name like concat('%', #{keyword}, '%') or p.description like concat('%', #{keyword}, '%'))
+                 union all
+                 select t.id,
+                        'TASK' as type,
+                        t.name as title,
+                        t.description as summary,
+                        t.project_id,
+                        p.name as project_name
+                 from project_task t
+                          inner join project_info p on p.id = t.project_id and p.is_deleted = 0
+                 where t.is_deleted = 0
+                   and (#{projectId} is null or t.project_id = #{projectId})
+                   and (#{type} is null or #{type} = '' or #{type} = 'TASK')
+                   and (#{keyword} is null or #{keyword} = '' or t.name like concat('%', #{keyword}, '%') or t.description like concat('%', #{keyword}, '%'))
+                 union all
+                 select r.id,
+                        'RISK' as type,
+                        r.name as title,
+                        r.description as summary,
+                        r.project_id,
+                        p.name as project_name
+                 from risk_register r
+                          inner join project_info p on p.id = r.project_id and p.is_deleted = 0
+                 where r.is_deleted = 0
+                   and (#{projectId} is null or r.project_id = #{projectId})
+                   and (#{type} is null or #{type} = '' or #{type} = 'RISK')
+                   and (#{keyword} is null or #{keyword} = '' or r.name like concat('%', #{keyword}, '%') or r.description like concat('%', #{keyword}, '%'))
+                 union all
+                 select l.id,
+                        'LESSON' as type,
+                        l.title as title,
+                        l.content as summary,
+                        l.project_id,
+                        p.name as project_name
+                 from lesson_learned l
+                          inner join project_info p on p.id = l.project_id and p.is_deleted = 0
+                 where l.is_deleted = 0
+                   and (#{projectId} is null or l.project_id = #{projectId})
+                   and (#{type} is null or #{type} = '' or #{type} = 'LESSON')
+                   and (#{keyword} is null or #{keyword} = '' or l.title like concat('%', #{keyword}, '%') or l.content like concat('%', #{keyword}, '%'))
+             ) s
+        order by project_id desc, id desc
+    </select>
+
+    <select id="selectAuditLogs" resultMap="AuditLogVoMap">
+        select id, project_id, module_name, biz_id, action, operator_id, operator_name,
+               request_method, request_path, result_code, ip_address, created_at
+        from operation_log
+        where 1 = 1
+        <if test="query != null and query.projectId != null">
+            and project_id = #{query.projectId}
+        </if>
+        <if test="query != null and query.module != null and query.module != ''">
+            and module_name = #{query.module}
+        </if>
+        <if test="query != null and query.operatorId != null">
+            and operator_id = #{query.operatorId}
+        </if>
+        <if test="query != null and query.startTime != null">
+            and created_at <![CDATA[ >= ]]> #{query.startTime}
+        </if>
+        <if test="query != null and query.endTime != null">
+            and created_at <![CDATA[ <= ]]> #{query.endTime}
+        </if>
+        order by created_at desc
+    </select>
+
+</mapper>

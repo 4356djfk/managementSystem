@@ -1,0 +1,475 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.TaskMapper">
+
+    <resultMap id="TaskEntityMap" type="com.manage.managesystem.entity.TaskEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="parentTaskId" column="parent_task_id"/>
+        <result property="wbsId" column="wbs_id"/>
+        <result property="milestoneId" column="milestone_id"/>
+        <result property="taskCode" column="task_code"/>
+        <result property="name" column="name"/>
+        <result property="description" column="description"/>
+        <result property="taskType" column="task_type"/>
+        <result property="priority" column="priority"/>
+        <result property="status" column="status"/>
+        <result property="progress" column="progress"/>
+        <result property="assigneeId" column="assignee_id"/>
+        <result property="plannedStartDate" column="planned_start_date"/>
+        <result property="plannedEndDate" column="planned_end_date"/>
+        <result property="actualStartDate" column="actual_start_date"/>
+        <result property="actualEndDate" column="actual_end_date"/>
+        <result property="plannedHours" column="planned_hours"/>
+        <result property="actualHours" column="actual_hours"/>
+        <result property="plannedCost" column="planned_cost"/>
+        <result property="actualCost" column="actual_cost"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="remark" column="remark"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="TaskListItemVoMap" type="com.manage.managesystem.vo.TaskListItemVO">
+        <id property="id" column="id"/>
+        <result property="taskCode" column="task_code"/>
+        <result property="name" column="name"/>
+        <result property="status" column="status"/>
+        <result property="priority" column="priority"/>
+        <result property="progress" column="progress"/>
+        <result property="assigneeId" column="assignee_id"/>
+        <result property="assigneeName" column="assignee_name"/>
+        <result property="plannedStartDate" column="planned_start_date"/>
+        <result property="plannedEndDate" column="planned_end_date"/>
+        <result property="actualStartDate" column="actual_start_date"/>
+        <result property="actualEndDate" column="actual_end_date"/>
+        <result property="plannedHours" column="planned_hours"/>
+        <result property="actualHours" column="actual_hours"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="remark" column="remark"/>
+        <result property="description" column="description"/>
+        <result property="parentTaskId" column="parent_task_id"/>
+        <result property="taskType" column="task_type"/>
+    </resultMap>
+
+    <resultMap id="TaskDetailVoMap" type="com.manage.managesystem.vo.TaskDetailVO" extends="TaskListItemVoMap">
+        <result property="description" column="description"/>
+        <result property="parentTaskId" column="parent_task_id"/>
+        <result property="wbsId" column="wbs_id"/>
+        <result property="wbsName" column="wbs_name"/>
+        <result property="milestoneId" column="milestone_id"/>
+        <result property="milestoneName" column="milestone_name"/>
+        <result property="childTaskCount" column="child_task_count"/>
+    </resultMap>
+
+    <resultMap id="TaskDependencyVoMap" type="com.manage.managesystem.vo.TaskDependencyVO">
+        <id property="id" column="id"/>
+        <result property="predecessorTaskId" column="predecessor_task_id"/>
+        <result property="predecessorTaskName" column="predecessor_task_name"/>
+        <result property="successorTaskId" column="successor_task_id"/>
+        <result property="successorTaskName" column="successor_task_name"/>
+        <result property="dependencyType" column="dependency_type"/>
+    </resultMap>
+
+    <resultMap id="CommentVoMap" type="com.manage.managesystem.vo.CommentVO">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="userName" column="user_name"/>
+        <result property="content" column="content"/>
+        <result property="replyToId" column="reply_to_id"/>
+        <result property="replyToName" column="reply_to_name"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="GanttTaskVoMap" type="com.manage.managesystem.vo.GanttTaskVO">
+        <id property="id" column="id"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="name" column="name"/>
+        <result property="start" column="start_time"/>
+        <result property="end" column="end_time"/>
+        <result property="progress" column="progress"/>
+        <result property="type" column="task_type"/>
+    </resultMap>
+
+    <resultMap id="ScheduleAlertVoMap" type="com.manage.managesystem.vo.ScheduleAlertVO">
+        <id property="taskId" column="task_id"/>
+        <result property="taskName" column="task_name"/>
+        <result property="alertLevel" column="alert_level"/>
+        <result property="alertMessage" column="alert_message"/>
+    </resultMap>
+
+    <select id="selectByProjectId" resultMap="TaskListItemVoMap">
+        select t.id,
+               t.task_code,
+               t.name,
+               t.parent_task_id,
+               t.task_type,
+               t.status,
+               t.priority,
+               t.progress,
+               t.assignee_id,
+               u.real_name as assignee_name,
+               t.planned_start_date,
+               t.planned_end_date,
+               t.actual_start_date,
+               t.actual_end_date,
+               t.planned_hours,
+               t.actual_hours,
+               t.sort_order,
+               t.remark,
+               t.description
+        from project_task t
+                 left join sys_user u on u.id = t.assignee_id
+        where t.project_id = #{projectId}
+          and t.is_deleted = 0
+        <if test="query != null and query.assigneeId != null">
+            and t.assignee_id = #{query.assigneeId}
+        </if>
+        <if test="query != null and query.status != null and query.status != ''">
+            and t.status = #{query.status}
+        </if>
+        <if test="query != null and query.milestoneId != null">
+            and t.milestone_id = #{query.milestoneId}
+        </if>
+        <if test="query != null and query.keyword != null and query.keyword != ''">
+            and (t.name like concat('%', #{query.keyword}, '%')
+            or t.task_code like concat('%', #{query.keyword}, '%'))
+        </if>
+        order by case when t.sort_order is null then 1 else 0 end,
+                 t.sort_order asc,
+                 t.id asc
+    </select>
+
+    <select id="selectDetailById" resultMap="TaskDetailVoMap">
+        select t.id,
+               t.task_code,
+               t.name,
+               t.status,
+               t.priority,
+               t.progress,
+               t.assignee_id,
+               u.real_name as assignee_name,
+               t.planned_start_date,
+               t.planned_end_date,
+               t.actual_start_date,
+               t.actual_end_date,
+               t.planned_hours,
+               t.actual_hours,
+               t.description,
+               t.parent_task_id,
+               t.wbs_id,
+               w.node_name as wbs_name,
+               t.milestone_id,
+               m.name as milestone_name,
+               (select count(1) from project_task c where c.parent_task_id = t.id and c.is_deleted = 0) as child_task_count
+        from project_task t
+                 left join sys_user u on u.id = t.assignee_id
+                 left join wbs_node w on w.id = t.wbs_id
+                 left join milestone m on m.id = t.milestone_id
+        where t.project_id = #{projectId}
+          and t.id = #{taskId}
+          and t.is_deleted = 0
+    </select>
+
+    <select id="selectDependenciesByTaskId" resultMap="TaskDependencyVoMap">
+        select td.id,
+               td.predecessor_task_id,
+               pre.name as predecessor_task_name,
+               td.successor_task_id,
+               suc.name as successor_task_name,
+               td.dependency_type
+        from task_dependency td
+                 left join project_task pre on pre.id = td.predecessor_task_id
+                 left join project_task suc on suc.id = td.successor_task_id
+        where td.project_id = #{projectId}
+          and (td.predecessor_task_id = #{taskId} or td.successor_task_id = #{taskId})
+        order by td.id desc
+    </select>
+
+    <select id="selectDependenciesByProjectId" resultMap="TaskDependencyVoMap">
+        select td.id,
+               td.predecessor_task_id,
+               pre.name as predecessor_task_name,
+               td.successor_task_id,
+               suc.name as successor_task_name,
+               td.dependency_type
+        from task_dependency td
+                 left join project_task pre on pre.id = td.predecessor_task_id
+                 left join project_task suc on suc.id = td.successor_task_id
+        where td.project_id = #{projectId}
+        order by td.id desc
+    </select>
+
+    <select id="selectEntityById" resultMap="TaskEntityMap">
+        select id,
+               project_id,
+               parent_task_id,
+               wbs_id,
+               milestone_id,
+               task_code,
+               name,
+               description,
+               task_type,
+               priority,
+               status,
+               progress,
+               assignee_id,
+               planned_start_date,
+               planned_end_date,
+               actual_start_date,
+               actual_end_date,
+               planned_hours,
+               actual_hours,
+               planned_cost,
+               actual_cost,
+               sort_order,
+               remark,
+               created_by,
+               created_at,
+               updated_by,
+               updated_at,
+               is_deleted
+        from project_task
+        where project_id = #{projectId}
+          and id = #{taskId}
+          and is_deleted = 0
+    </select>
+
+    <select id="selectCommentsByTaskId" resultMap="CommentVoMap">
+        select c.id,
+               c.project_id,
+               c.task_id,
+               c.user_id,
+               u.real_name as user_name,
+               c.content,
+               c.reply_to_id,
+               ru.real_name as reply_to_name,
+               c.created_at
+        from task_comment c
+                 left join sys_user u on u.id = c.user_id
+                 left join task_comment rc on rc.id = c.reply_to_id
+                 left join sys_user ru on ru.id = rc.user_id
+        where c.project_id = #{projectId}
+          and c.task_id = #{taskId}
+          and c.is_deleted = 0
+        order by c.created_at desc, c.id desc
+    </select>
+
+    <select id="selectCommentById" resultMap="CommentVoMap">
+        select c.id,
+               c.project_id,
+               c.task_id,
+               c.user_id,
+               u.real_name as user_name,
+               c.content,
+               c.reply_to_id,
+               ru.real_name as reply_to_name,
+               c.created_at
+        from task_comment c
+                 left join sys_user u on u.id = c.user_id
+                 left join task_comment rc on rc.id = c.reply_to_id
+                 left join sys_user ru on ru.id = rc.user_id
+        where c.project_id = #{projectId}
+          and c.id = #{id}
+          and c.is_deleted = 0
+    </select>
+
+    <select id="selectCommentEntityById" resultType="com.manage.managesystem.entity.CommentEntity">
+        select id, project_id, task_id, user_id, content, reply_to_id, created_at, updated_at, is_deleted
+        from task_comment
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insert" parameterType="com.manage.managesystem.entity.TaskEntity">
+        insert into project_task (
+            id, project_id, parent_task_id, wbs_id, milestone_id, task_code, name, description,
+            task_type, priority, status, progress, assignee_id, planned_start_date, planned_end_date,
+            actual_start_date, actual_end_date, planned_hours, actual_hours, planned_cost, actual_cost,
+            sort_order, remark, created_by, created_at, updated_by, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{parentTaskId}, #{wbsId}, #{milestoneId}, #{taskCode}, #{name}, #{description},
+            #{taskType}, #{priority}, #{status}, #{progress}, #{assigneeId}, #{plannedStartDate}, #{plannedEndDate},
+            #{actualStartDate}, #{actualEndDate}, #{plannedHours}, #{actualHours}, #{plannedCost}, #{actualCost},
+            #{sortOrder}, #{remark}, #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <insert id="insertComment" parameterType="com.manage.managesystem.entity.CommentEntity">
+        insert into task_comment (
+            id, project_id, task_id, user_id, content, reply_to_id, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{taskId}, #{userId}, #{content}, #{replyToId}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.manage.managesystem.entity.TaskEntity">
+        update project_task
+        set parent_task_id = #{parentTaskId},
+            wbs_id = #{wbsId},
+            milestone_id = #{milestoneId},
+            name = #{name},
+            description = #{description},
+            task_type = #{taskType},
+            priority = #{priority},
+            status = #{status},
+            progress = #{progress},
+            assignee_id = #{assigneeId},
+            planned_start_date = #{plannedStartDate},
+            planned_end_date = #{plannedEndDate},
+            remark = #{remark},
+            planned_hours = #{plannedHours},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDelete">
+        update project_task
+        set is_deleted = 1,
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{taskId}
+          and is_deleted = 0
+    </update>
+
+    <update id="updateProgress">
+        update project_task
+        set status = #{status},
+            progress = #{progress},
+            remark = #{remark},
+            actual_start_date = case
+                when #{actualStartDate} is not null and actual_start_date is null then #{actualStartDate}
+                else actual_start_date
+            end,
+            actual_end_date = case
+                when #{actualEndDate} is not null then #{actualEndDate}
+                else actual_end_date
+            end,
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{taskId}
+          and is_deleted = 0
+    </update>
+
+    <update id="updateActualMetrics">
+        update project_task
+        set actual_hours = #{actualHours},
+            actual_cost = #{actualCost},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{taskId}
+          and is_deleted = 0
+    </update>
+
+    <select id="selectGanttByProjectId" resultMap="GanttTaskVoMap">
+        select t.id,
+               t.parent_task_id as parent_id,
+               t.name,
+               coalesce(t.planned_start_date, t.actual_start_date) as start_time,
+               coalesce(t.planned_end_date, t.actual_end_date) as end_time,
+               t.progress,
+               t.task_type
+        from project_task t
+        where t.project_id = #{projectId}
+          and t.is_deleted = 0
+        order by coalesce(t.planned_start_date, t.actual_start_date), t.id
+    </select>
+
+    <select id="selectCriticalPath" resultMap="TaskListItemVoMap">
+        select t.id,
+               t.task_code,
+               t.name,
+               t.status,
+               t.priority,
+               t.progress,
+               t.assignee_id,
+               u.real_name as assignee_name,
+               t.planned_start_date,
+               t.planned_end_date,
+               t.actual_start_date,
+               t.actual_end_date,
+               t.planned_hours,
+               t.actual_hours
+        from project_task t
+                 left join sys_user u on u.id = t.assignee_id
+        where t.project_id = #{projectId}
+          and t.is_deleted = 0
+          and t.planned_start_date is not null
+          and t.planned_end_date is not null
+        order by t.planned_start_date asc, t.planned_end_date desc, t.priority desc
+        limit 10
+    </select>
+
+    <select id="selectScheduleAlerts" resultMap="ScheduleAlertVoMap">
+        select t.id as task_id,
+               t.name as task_name,
+               case
+                   when t.planned_end_date is not null and t.planned_end_date &lt; #{now} and t.status &lt;&gt; 'DONE' then 'HIGH'
+                   when t.planned_end_date is not null and t.planned_end_date &lt;= date_add(#{now}, interval 3 day) and t.status &lt;&gt; 'DONE' then 'MEDIUM'
+                   else 'LOW'
+               end as alert_level,
+               case
+                   when t.planned_end_date is not null and t.planned_end_date &lt; #{now} and t.status &lt;&gt; 'DONE' then '任务已逾期且未完成'
+                   when t.planned_end_date is not null and t.planned_end_date &lt;= date_add(#{now}, interval 3 day) and t.status &lt;&gt; 'DONE' then '任务将在3天内到期'
+                   else '任务进度正常'
+               end as alert_message
+        from project_task t
+        where t.project_id = #{projectId}
+          and t.is_deleted = 0
+          and t.planned_end_date is not null
+          and t.status &lt;&gt; 'DONE'
+        order by t.planned_end_date asc
+    </select>
+
+    <select id="selectDependencyById" resultMap="TaskDependencyVoMap">
+        select td.id,
+               td.predecessor_task_id,
+               pre.name as predecessor_task_name,
+               td.successor_task_id,
+               suc.name as successor_task_name,
+               td.dependency_type
+        from task_dependency td
+                 left join project_task pre on pre.id = td.predecessor_task_id
+                 left join project_task suc on suc.id = td.successor_task_id
+        where td.project_id = #{projectId}
+          and td.id = #{id}
+    </select>
+
+    <insert id="insertDependency" parameterType="com.manage.managesystem.entity.TaskDependencyEntity">
+        insert into task_dependency (
+            id, project_id, predecessor_task_id, successor_task_id, dependency_type, created_at
+        ) values (
+            #{id}, #{projectId}, #{predecessorTaskId}, #{successorTaskId}, #{dependencyType}, #{createdAt}
+        )
+    </insert>
+
+    <delete id="deleteDependency">
+        delete from task_dependency
+        where project_id = #{projectId}
+          and id = #{id}
+    </delete>
+
+    <update id="softDeleteComment">
+        update task_comment
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+</mapper>
