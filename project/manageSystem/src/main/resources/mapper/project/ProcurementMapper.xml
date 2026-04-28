@@ -1,0 +1,435 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.ProcurementMapper">
+
+    <resultMap id="SupplierEntityMap" type="com.manage.managesystem.entity.SupplierEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="supplierName" column="supplier_name"/>
+        <result property="contactName" column="contact_name"/>
+        <result property="contactPhone" column="contact_phone"/>
+        <result property="contactEmail" column="contact_email"/>
+        <result property="address" column="address"/>
+        <result property="remark" column="remark"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="SupplierVoMap" type="com.manage.managesystem.vo.SupplierVO">
+        <id property="id" column="id"/>
+        <result property="supplierName" column="supplier_name"/>
+        <result property="contactName" column="contact_name"/>
+        <result property="contactPhone" column="contact_phone"/>
+        <result property="contactEmail" column="contact_email"/>
+        <result property="address" column="address"/>
+        <result property="remark" column="remark"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="ProcurementEntityMap" type="com.manage.managesystem.entity.ProcurementEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="supplierId" column="supplier_id"/>
+        <result property="costPlanId" column="cost_plan_id"/>
+        <result property="itemName" column="item_name"/>
+        <result property="quantity" column="quantity"/>
+        <result property="unitPrice" column="unit_price"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="status" column="status"/>
+        <result property="expectedDeliveryDate" column="expected_delivery_date"/>
+        <result property="actualDeliveryDate" column="actual_delivery_date"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="ProcurementVoMap" type="com.manage.managesystem.vo.ProcurementVO">
+        <id property="id" column="id"/>
+        <result property="supplierId" column="supplier_id"/>
+        <result property="supplierName" column="supplier_name"/>
+        <result property="costPlanId" column="cost_plan_id"/>
+        <result property="costPlanName" column="cost_plan_name"/>
+        <result property="itemName" column="item_name"/>
+        <result property="quantity" column="quantity"/>
+        <result property="unitPrice" column="unit_price"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="status" column="status"/>
+        <result property="expectedDeliveryDate" column="expected_delivery_date"/>
+        <result property="actualDeliveryDate" column="actual_delivery_date"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="ContractEntityMap" type="com.manage.managesystem.entity.ContractEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="supplierId" column="supplier_id"/>
+        <result property="contractNo" column="contract_no"/>
+        <result property="contractName" column="contract_name"/>
+        <result property="contractType" column="contract_type"/>
+        <result property="signDate" column="sign_date"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="deliverables" column="deliverables"/>
+        <result property="paymentTerms" column="payment_terms"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="ContractVoMap" type="com.manage.managesystem.vo.ContractVO">
+        <id property="id" column="id"/>
+        <result property="supplierId" column="supplier_id"/>
+        <result property="supplierName" column="supplier_name"/>
+        <result property="contractNo" column="contract_no"/>
+        <result property="contractName" column="contract_name"/>
+        <result property="contractType" column="contract_type"/>
+        <result property="signDate" column="sign_date"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="deliverables" column="deliverables"/>
+        <result property="paymentTerms" column="payment_terms"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectSuppliersByProjectId" resultMap="SupplierVoMap">
+        select id,
+               supplier_name,
+               contact_name,
+               contact_phone,
+               contact_email,
+               address,
+               remark,
+               created_at,
+               updated_at
+        from supplier_info
+        where project_id = #{projectId}
+          and is_deleted = 0
+        <if test="query != null and query.keyword != null and query.keyword != ''">
+            and (
+                supplier_name like concat('%', #{query.keyword}, '%')
+                or contact_name like concat('%', #{query.keyword}, '%')
+                or contact_phone like concat('%', #{query.keyword}, '%')
+                or contact_email like concat('%', #{query.keyword}, '%')
+            )
+        </if>
+        order by updated_at desc, created_at desc
+    </select>
+
+    <select id="selectSupplierById" resultMap="SupplierVoMap">
+        select id,
+               supplier_name,
+               contact_name,
+               contact_phone,
+               contact_email,
+               address,
+               remark,
+               created_at,
+               updated_at
+        from supplier_info
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <select id="selectSupplierEntityById" resultMap="SupplierEntityMap">
+        select id,
+               project_id,
+               supplier_name,
+               contact_name,
+               contact_phone,
+               contact_email,
+               address,
+               remark,
+               created_at,
+               updated_at,
+               is_deleted
+        from supplier_info
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertSupplier" parameterType="com.manage.managesystem.entity.SupplierEntity">
+        insert into supplier_info (
+            id, project_id, supplier_name, contact_name, contact_phone, contact_email, address, remark, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{supplierName}, #{contactName}, #{contactPhone}, #{contactEmail}, #{address}, #{remark}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updateSupplier" parameterType="com.manage.managesystem.entity.SupplierEntity">
+        update supplier_info
+        set supplier_name = #{supplierName},
+            contact_name = #{contactName},
+            contact_phone = #{contactPhone},
+            contact_email = #{contactEmail},
+            address = #{address},
+            remark = #{remark},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeleteSupplier">
+        update supplier_info
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="countProcurementsBySupplierId" resultType="int">
+        select count(1)
+        from procurement_item
+        where project_id = #{projectId}
+          and supplier_id = #{supplierId}
+          and is_deleted = 0
+    </select>
+
+    <select id="countContractsBySupplierId" resultType="int">
+        select count(1)
+        from contract_info
+        where project_id = #{projectId}
+          and supplier_id = #{supplierId}
+          and is_deleted = 0
+    </select>
+
+    <select id="selectProcurementsByProjectId" resultMap="ProcurementVoMap">
+        select p.id,
+               p.supplier_id,
+               s.supplier_name,
+               p.cost_plan_id,
+               cp.item_name as cost_plan_name,
+               p.item_name,
+               p.quantity,
+               p.unit_price,
+               p.total_amount,
+               p.status,
+               p.expected_delivery_date,
+               p.actual_delivery_date,
+               p.created_at,
+               p.updated_at
+        from procurement_item p
+                 left join supplier_info s on s.id = p.supplier_id and s.is_deleted = 0
+                 left join cost_plan cp on cp.id = p.cost_plan_id and cp.is_deleted = 0
+        where p.project_id = #{projectId}
+          and p.is_deleted = 0
+        <if test="query != null and query.status != null and query.status != ''">
+            and p.status = #{query.status}
+        </if>
+        <if test="query != null and query.supplierId != null">
+            and p.supplier_id = #{query.supplierId}
+        </if>
+        <if test="query != null and query.costPlanId != null">
+            and p.cost_plan_id = #{query.costPlanId}
+        </if>
+        order by p.updated_at desc, p.created_at desc
+    </select>
+
+    <select id="selectProcurementById" resultMap="ProcurementVoMap">
+        select p.id,
+               p.supplier_id,
+               s.supplier_name,
+               p.cost_plan_id,
+               cp.item_name as cost_plan_name,
+               p.item_name,
+               p.quantity,
+               p.unit_price,
+               p.total_amount,
+               p.status,
+               p.expected_delivery_date,
+               p.actual_delivery_date,
+               p.created_at,
+               p.updated_at
+        from procurement_item p
+                 left join supplier_info s on s.id = p.supplier_id and s.is_deleted = 0
+                 left join cost_plan cp on cp.id = p.cost_plan_id and cp.is_deleted = 0
+        where p.project_id = #{projectId}
+          and p.id = #{id}
+          and p.is_deleted = 0
+    </select>
+
+    <select id="selectProcurementEntityById" resultMap="ProcurementEntityMap">
+        select id,
+               project_id,
+               supplier_id,
+               cost_plan_id,
+               item_name,
+               quantity,
+               unit_price,
+               total_amount,
+               status,
+               expected_delivery_date,
+               actual_delivery_date,
+               created_at,
+               updated_at,
+               is_deleted
+        from procurement_item
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertProcurement" parameterType="com.manage.managesystem.entity.ProcurementEntity">
+        insert into procurement_item (
+            id, project_id, supplier_id, cost_plan_id, item_name, quantity, unit_price, total_amount,
+            status, expected_delivery_date, actual_delivery_date, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{supplierId}, #{costPlanId}, #{itemName}, #{quantity}, #{unitPrice}, #{totalAmount},
+            #{status}, #{expectedDeliveryDate}, #{actualDeliveryDate}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updateProcurement" parameterType="com.manage.managesystem.entity.ProcurementEntity">
+        update procurement_item
+        set supplier_id = #{supplierId},
+            cost_plan_id = #{costPlanId},
+            item_name = #{itemName},
+            quantity = #{quantity},
+            unit_price = #{unitPrice},
+            total_amount = #{totalAmount},
+            status = #{status},
+            expected_delivery_date = #{expectedDeliveryDate},
+            actual_delivery_date = #{actualDeliveryDate},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="updateProcurementStatus">
+        update procurement_item
+        set status = #{status},
+            actual_delivery_date = #{actualDeliveryDate},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeleteProcurement">
+        update procurement_item
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="selectContractsByProjectId" resultMap="ContractVoMap">
+        select c.id,
+               c.supplier_id,
+               s.supplier_name,
+               c.contract_no,
+               c.contract_name,
+               c.contract_type,
+               c.sign_date,
+               c.total_amount,
+               c.deliverables,
+               c.payment_terms,
+               c.status,
+               c.created_at,
+               c.updated_at
+        from contract_info c
+                 left join supplier_info s on s.id = c.supplier_id and s.is_deleted = 0
+        where c.project_id = #{projectId}
+          and c.is_deleted = 0
+        <if test="query != null and query.status != null and query.status != ''">
+            and c.status = #{query.status}
+        </if>
+        <if test="query != null and query.supplierId != null">
+            and c.supplier_id = #{query.supplierId}
+        </if>
+        <if test="query != null and query.contractType != null and query.contractType != ''">
+            and c.contract_type = #{query.contractType}
+        </if>
+        order by c.updated_at desc, c.created_at desc
+    </select>
+
+    <select id="selectContractById" resultMap="ContractVoMap">
+        select c.id,
+               c.supplier_id,
+               s.supplier_name,
+               c.contract_no,
+               c.contract_name,
+               c.contract_type,
+               c.sign_date,
+               c.total_amount,
+               c.deliverables,
+               c.payment_terms,
+               c.status,
+               c.created_at,
+               c.updated_at
+        from contract_info c
+                 left join supplier_info s on s.id = c.supplier_id and s.is_deleted = 0
+        where c.project_id = #{projectId}
+          and c.id = #{id}
+          and c.is_deleted = 0
+    </select>
+
+    <select id="selectContractEntityById" resultMap="ContractEntityMap">
+        select id,
+               project_id,
+               supplier_id,
+               contract_no,
+               contract_name,
+               contract_type,
+               sign_date,
+               total_amount,
+               deliverables,
+               payment_terms,
+               status,
+               created_at,
+               updated_at,
+               is_deleted
+        from contract_info
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertContract" parameterType="com.manage.managesystem.entity.ContractEntity">
+        insert into contract_info (
+            id, project_id, supplier_id, contract_no, contract_name, contract_type, sign_date,
+            total_amount, deliverables, payment_terms, status, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{supplierId}, #{contractNo}, #{contractName}, #{contractType}, #{signDate},
+            #{totalAmount}, #{deliverables}, #{paymentTerms}, #{status}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updateContract" parameterType="com.manage.managesystem.entity.ContractEntity">
+        update contract_info
+        set supplier_id = #{supplierId},
+            contract_no = #{contractNo},
+            contract_name = #{contractName},
+            contract_type = #{contractType},
+            sign_date = #{signDate},
+            total_amount = #{totalAmount},
+            deliverables = #{deliverables},
+            payment_terms = #{paymentTerms},
+            status = #{status},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeleteContract">
+        update contract_info
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+</mapper>

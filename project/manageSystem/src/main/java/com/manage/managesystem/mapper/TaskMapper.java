@@ -33,6 +33,8 @@ public interface TaskMapper {
     TaskEntity selectEntityById(@Param("projectId") Long projectId,
                                 @Param("taskId") Long taskId);
 
+    List<TaskEntity> selectEntitiesByProjectId(@Param("projectId") Long projectId);
+
     List<CommentVO> selectCommentsByTaskId(@Param("projectId") Long projectId,
                                            @Param("taskId") Long taskId);
 
@@ -57,11 +59,19 @@ public interface TaskMapper {
                        @Param("taskId") Long taskId,
                        @Param("status") String status,
                        @Param("progress") BigDecimal progress,
+                       @Param("assigneeId") Long assigneeId,
                        @Param("remark") String remark,
                        @Param("actualStartDate") LocalDateTime actualStartDate,
                        @Param("actualEndDate") LocalDateTime actualEndDate,
                        @Param("updatedBy") Long updatedBy,
                        @Param("updatedAt") LocalDateTime updatedAt);
+
+    int updateDerivedProgress(@Param("projectId") Long projectId,
+                              @Param("taskId") Long taskId,
+                              @Param("status") String status,
+                              @Param("progress") BigDecimal progress,
+                              @Param("updatedBy") Long updatedBy,
+                              @Param("updatedAt") LocalDateTime updatedAt);
 
     int updateActualMetrics(@Param("projectId") Long projectId,
                             @Param("taskId") Long taskId,

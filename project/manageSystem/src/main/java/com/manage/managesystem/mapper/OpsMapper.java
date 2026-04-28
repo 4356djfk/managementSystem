@@ -3,6 +3,8 @@ package com.manage.managesystem.mapper;
 import com.manage.managesystem.entity.AttachmentEntity;
 import com.manage.managesystem.dto.AuditLogQueryDto;
 import com.manage.managesystem.entity.ExportTaskEntity;
+import com.manage.managesystem.entity.NotificationEntity;
+import com.manage.managesystem.entity.OperationLogEntity;
 import com.manage.managesystem.vo.AcceptanceItemVO;
 import com.manage.managesystem.vo.AuditLogVO;
 import com.manage.managesystem.vo.ExportTaskVO;
@@ -47,6 +49,8 @@ public interface OpsMapper {
 
     List<NotificationVO> selectNotifications(@Param("receiverId") Long receiverId);
 
+    int insertNotification(NotificationEntity entity);
+
     int markNotificationRead(@Param("id") Long id, @Param("receiverId") Long receiverId, @Param("readAt") LocalDateTime readAt);
 
     int markAllNotificationsRead(@Param("receiverId") Long receiverId, @Param("readAt") LocalDateTime readAt);
@@ -61,6 +65,8 @@ public interface OpsMapper {
     ExportTaskVO selectExportTaskById(@Param("id") Long id);
 
     int insertAttachment(AttachmentEntity entity);
+
+    int insertOperationLog(OperationLogEntity entity);
 
     List<SearchResultVO> search(@Param("keyword") String keyword,
                                 @Param("type") String type,

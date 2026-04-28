@@ -26,14 +26,20 @@ public class TimesheetService {
     private final TimesheetMapper timesheetMapper;
     private final TaskMapper taskMapper;
     private final CostMapper costMapper;
+    private final ProjectPermissionService projectPermissionService;
 
-    public TimesheetService(TimesheetMapper timesheetMapper, TaskMapper taskMapper, CostMapper costMapper) {
+    public TimesheetService(TimesheetMapper timesheetMapper,
+                            TaskMapper taskMapper,
+                            CostMapper costMapper,
+                            ProjectPermissionService projectPermissionService) {
         this.timesheetMapper = timesheetMapper;
         this.taskMapper = taskMapper;
         this.costMapper = costMapper;
+        this.projectPermissionService = projectPermissionService;
     }
 
     public PageResult<TimesheetVO> list(Long projectId, TimesheetQueryDto queryDto) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         List<TimesheetVO> list = timesheetMapper.selectByProjectId(projectId, queryDto);
         PageResult<TimesheetVO> pageResult = new PageResult<>();
         pageResult.setList(list);
@@ -45,6 +51,7 @@ public class TimesheetService {
 
     @Transactional
     public TimesheetVO create(Long projectId, CreateTimesheetDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         TaskEntity task = requireTask(projectId, dto.getTaskId());
         LocalDateTime now = LocalDateTime.now();
 
@@ -70,8 +77,10 @@ public class TimesheetService {
 
     @Transactional
     public TimesheetVO update(Long projectId, Long id, UpdateTimesheetDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         TaskEntity targetTask = requireTask(projectId, dto.getTaskId());
         TimesheetEntity entity = ensureRecord(projectId, id);
+        ensureRecordOwnerPermission(entity);
         Long previousTaskId = entity.getTaskId();
 
         entity.setTaskId(dto.getTaskId());
@@ -92,7 +101,9 @@ public class TimesheetService {
 
     @Transactional
     public void delete(Long projectId, Long id) {
+        projectPermissionService.ensureProjectEditor(projectId);
         TimesheetEntity entity = ensureRecord(projectId, id);
+        ensureRecordOwnerPermission(entity);
         timesheetMapper.softDelete(id, LocalDateTime.now());
         if (entity.getTaskId() != null) {
             syncTaskActualMetrics(projectId, entity.getTaskId());
@@ -100,6 +111,7 @@ public class TimesheetService {
     }
 
     public TimesheetReportVO report(Long projectId) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         TimesheetQueryDto queryDto = new TimesheetQueryDto();
         List<TimesheetVO> records = timesheetMapper.selectByProjectId(projectId, queryDto);
         TimesheetReportVO report = new TimesheetReportVO();
@@ -119,6 +131,19 @@ public class TimesheetService {
             throw new IllegalArgumentException("timesheet record not found");
         }
         return entity;
+    }
+
+    private void ensureRecordOwnerPermission(TimesheetEntity entity) {
+        if (entity == null) {
+            return;
+        }
+        if (projectPermissionService.isProjectOwner(entity.getProjectId())) {
+            return;
+        }
+        Long currentUserId = projectPermissionService.requireCurrentUserId();
+        if (!currentUserId.equals(entity.getUserId())) {
+            throw new IllegalArgumentException("participants can only edit their own timesheets");
+        }
     }
 
     private TaskEntity requireTask(Long projectId, Long taskId) {

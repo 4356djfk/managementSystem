@@ -15,6 +15,8 @@ public interface ScopeBaselineMapper {
 
     int countByProjectId(@Param("projectId") Long projectId);
 
+    Integer selectMaxVersionNumber(@Param("projectId") Long projectId);
+
     int insert(ScopeBaselineEntity entity);
 
     int deleteById(@Param("id") Long id);

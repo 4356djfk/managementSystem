@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.ConfigurationMapper">
+
+    <resultMap id="ConfigItemEntityMap" type="com.manage.managesystem.entity.ConfigItemEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="itemName" column="item_name"/>
+        <result property="itemType" column="item_type"/>
+        <result property="versionNo" column="version_no"/>
+        <result property="status" column="status"/>
+        <result property="repositoryUrl" column="repository_url"/>
+        <result property="remark" column="remark"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="ConfigItemVoMap" type="com.manage.managesystem.vo.ConfigItemVO">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="itemName" column="item_name"/>
+        <result property="itemType" column="item_type"/>
+        <result property="versionNo" column="version_no"/>
+        <result property="status" column="status"/>
+        <result property="repositoryUrl" column="repository_url"/>
+        <result property="remark" column="remark"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdByName" column="created_by_name"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="updatedByName" column="updated_by_name"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="BaselineRecordEntityMap" type="com.manage.managesystem.entity.BaselineRecordEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="baselineType" column="baseline_type"/>
+        <result property="versionNo" column="version_no"/>
+        <result property="baselineName" column="baseline_name"/>
+        <result property="snapshotJson" column="snapshot_json"/>
+        <result property="status" column="status"/>
+        <result property="publishedBy" column="published_by"/>
+        <result property="publishedAt" column="published_at"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="BaselineRecordVoMap" type="com.manage.managesystem.vo.BaselineRecordVO">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="baselineType" column="baseline_type"/>
+        <result property="versionNo" column="version_no"/>
+        <result property="baselineName" column="baseline_name"/>
+        <result property="snapshotJson" column="snapshot_json"/>
+        <result property="status" column="status"/>
+        <result property="publishedBy" column="published_by"/>
+        <result property="publishedByName" column="published_by_name"/>
+        <result property="publishedAt" column="published_at"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectConfigItemsByProjectId" resultMap="ConfigItemVoMap">
+        select ci.id,
+               ci.project_id,
+               ci.item_name,
+               ci.item_type,
+               ci.version_no,
+               ci.status,
+               ci.repository_url,
+               ci.remark,
+               ci.created_by,
+               creator.real_name as created_by_name,
+               ci.updated_by,
+               updater.real_name as updated_by_name,
+               ci.created_at,
+               ci.updated_at
+        from config_item ci
+                 left join sys_user creator on creator.id = ci.created_by
+                 left join sys_user updater on updater.id = ci.updated_by
+        where ci.project_id = #{projectId}
+          and ci.is_deleted = 0
+        <if test="query != null and query.keyword != null and query.keyword != ''">
+            and (
+                ci.item_name like concat('%', #{query.keyword}, '%')
+                or ci.version_no like concat('%', #{query.keyword}, '%')
+                or ci.repository_url like concat('%', #{query.keyword}, '%')
+                or ci.remark like concat('%', #{query.keyword}, '%')
+            )
+        </if>
+        <if test="query != null and query.itemType != null and query.itemType != ''">
+            and ci.item_type = #{query.itemType}
+        </if>
+        <if test="query != null and query.status != null and query.status != ''">
+            and ci.status = #{query.status}
+        </if>
+        order by ci.updated_at desc, ci.created_at desc
+    </select>
+
+    <select id="selectConfigItemById" resultMap="ConfigItemVoMap">
+        select ci.id,
+               ci.project_id,
+               ci.item_name,
+               ci.item_type,
+               ci.version_no,
+               ci.status,
+               ci.repository_url,
+               ci.remark,
+               ci.created_by,
+               creator.real_name as created_by_name,
+               ci.updated_by,
+               updater.real_name as updated_by_name,
+               ci.created_at,
+               ci.updated_at
+        from config_item ci
+                 left join sys_user creator on creator.id = ci.created_by
+                 left join sys_user updater on updater.id = ci.updated_by
+        where ci.project_id = #{projectId}
+          and ci.id = #{id}
+          and ci.is_deleted = 0
+    </select>
+
+    <select id="selectConfigItemEntityById" resultMap="ConfigItemEntityMap">
+        select id,
+               project_id,
+               item_name,
+               item_type,
+               version_no,
+               status,
+               repository_url,
+               remark,
+               created_by,
+               created_at,
+               updated_by,
+               updated_at,
+               is_deleted
+        from config_item
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertConfigItem" parameterType="com.manage.managesystem.entity.ConfigItemEntity">
+        insert into config_item (
+            id, project_id, item_name, item_type, version_no, status, repository_url, remark,
+            created_by, created_at, updated_by, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{itemName}, #{itemType}, #{versionNo}, #{status}, #{repositoryUrl}, #{remark},
+            #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updateConfigItem" parameterType="com.manage.managesystem.entity.ConfigItemEntity">
+        update config_item
+        set item_name = #{itemName},
+            item_type = #{itemType},
+            version_no = #{versionNo},
+            status = #{status},
+            repository_url = #{repositoryUrl},
+            remark = #{remark},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeleteConfigItem">
+        update config_item
+        set is_deleted = 1,
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeleteConfigItemsByProjectId">
+        update config_item
+        set is_deleted = 1,
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and is_deleted = 0
+    </update>
+
+    <select id="selectBaselineRecordsByProjectId" resultMap="BaselineRecordVoMap">
+        select br.id,
+               br.project_id,
+               br.baseline_type,
+               br.version_no,
+               br.baseline_name,
+               br.snapshot_json,
+               br.status,
+               br.published_by,
+               u.real_name as published_by_name,
+               br.published_at,
+               br.created_at
+        from baseline_record br
+                 left join sys_user u on u.id = br.published_by
+        where br.project_id = #{projectId}
+        <if test="query != null and query.baselineType != null and query.baselineType != ''">
+            and br.baseline_type = #{query.baselineType}
+        </if>
+        <if test="query != null and query.status != null and query.status != ''">
+            and br.status = #{query.status}
+        </if>
+        order by br.published_at desc, br.created_at desc, br.id desc
+    </select>
+
+    <select id="selectBaselineRecordById" resultMap="BaselineRecordVoMap">
+        select br.id,
+               br.project_id,
+               br.baseline_type,
+               br.version_no,
+               br.baseline_name,
+               br.snapshot_json,
+               br.status,
+               br.published_by,
+               u.real_name as published_by_name,
+               br.published_at,
+               br.created_at
+        from baseline_record br
+                 left join sys_user u on u.id = br.published_by
+        where br.project_id = #{projectId}
+          and br.id = #{id}
+    </select>
+
+    <select id="selectBaselineRecordEntityById" resultMap="BaselineRecordEntityMap">
+        select id,
+               project_id,
+               baseline_type,
+               version_no,
+               baseline_name,
+               snapshot_json,
+               status,
+               published_by,
+               published_at,
+               created_at
+        from baseline_record
+        where project_id = #{projectId}
+          and id = #{id}
+    </select>
+
+    <select id="countBaselineRecords" resultType="int">
+        select count(1)
+        from baseline_record
+        where project_id = #{projectId}
+          and baseline_type = #{baselineType}
+    </select>
+
+    <insert id="insertBaselineRecord" parameterType="com.manage.managesystem.entity.BaselineRecordEntity">
+        insert into baseline_record (
+            id, project_id, baseline_type, version_no, baseline_name, snapshot_json,
+            status, published_by, published_at, created_at
+        ) values (
+            #{id}, #{projectId}, #{baselineType}, #{versionNo}, #{baselineName}, #{snapshotJson},
+            #{status}, #{publishedBy}, #{publishedAt}, #{createdAt}
+        )
+    </insert>
+
+    <delete id="deleteBaselineRecord">
+        delete from baseline_record
+        where project_id = #{projectId}
+          and id = #{id}
+    </delete>
+</mapper>

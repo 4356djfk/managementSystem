@@ -34,19 +34,19 @@ public class WbsController {
     }
 
     @PostMapping
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<WbsNodeVO> create(@PathVariable Long projectId, @Valid @RequestBody CreateWbsNodeDto dto) {
         return ApiResponse.success(wbsService.create(projectId, dto));
     }
 
     @PutMapping("/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<WbsNodeVO> update(@PathVariable Long projectId, @PathVariable Long id, @Valid @RequestBody UpdateWbsNodeDto dto) {
         return ApiResponse.success(wbsService.update(projectId, id, dto));
     }
 
     @DeleteMapping("/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> delete(@PathVariable Long projectId, @PathVariable Long id) {
         wbsService.delete(projectId, id);
         return ApiResponse.success(null);

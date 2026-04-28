@@ -1,6 +1,7 @@
 package com.manage.managesystem.mapper;
 
 import com.manage.managesystem.entity.UserEntity;
+import com.manage.managesystem.vo.ProjectMemberCandidateVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -14,6 +15,8 @@ public interface UserMapper {
     UserEntity selectByUsername(@Param("username") String username);
 
     List<UserEntity> selectList(@Param("keyword") String keyword, @Param("status") String status);
+
+    List<ProjectMemberCandidateVO> selectProjectMemberCandidates();
 
     int insert(UserEntity user);
 

@@ -67,6 +67,26 @@ public class TokenService {
         }
     }
 
+    public void refreshSession(TokenSession session) {
+        if (session == null || session.getToken() == null || session.getToken().isBlank() || session.getExpiresAt() == null) {
+            return;
+        }
+        Duration ttl = Duration.between(LocalDateTime.now(), session.getExpiresAt());
+        if (ttl.isZero() || ttl.isNegative()) {
+            invalidate(session.getToken());
+            return;
+        }
+        try {
+            stringRedisTemplate.opsForValue().set(
+                    buildKey(session.getToken()),
+                    objectMapper.writeValueAsString(session),
+                    ttl
+            );
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("token session serialization failed", e);
+        }
+    }
+
     private String buildKey(String token) {
         return TOKEN_KEY_PREFIX + token;
     }

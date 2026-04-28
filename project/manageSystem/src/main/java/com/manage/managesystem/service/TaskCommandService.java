@@ -8,15 +8,13 @@ import com.manage.managesystem.dto.CreateTaskDto;
 import com.manage.managesystem.dto.UpdateTaskDto;
 import com.manage.managesystem.dto.UpdateTaskProgressDto;
 import com.manage.managesystem.entity.CommentEntity;
+import com.manage.managesystem.entity.ProjectEntity;
 import com.manage.managesystem.entity.TaskDependencyEntity;
 import com.manage.managesystem.entity.TaskEntity;
-import com.manage.managesystem.entity.ProjectEntity;
 import com.manage.managesystem.enums.DependencyTypeEnum;
 import com.manage.managesystem.enums.PriorityEnum;
-import com.manage.managesystem.enums.SystemRoleEnum;
 import com.manage.managesystem.enums.TaskStatusEnum;
 import com.manage.managesystem.enums.TaskTypeEnum;
-import com.manage.managesystem.mapper.ProjectMemberMapper;
 import com.manage.managesystem.mapper.ProjectMapper;
 import com.manage.managesystem.mapper.TaskMapper;
 import com.manage.managesystem.mapper.UserMapper;
@@ -28,32 +26,41 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class TaskCommandService {
     private final TaskMapper taskMapper;
     private final TaskQueryService taskQueryService;
     private final ProjectMapper projectMapper;
-    private final ProjectMemberMapper projectMemberMapper;
     private final UserMapper userMapper;
+    private final ProjectPermissionService projectPermissionService;
+    private final NotificationService notificationService;
+    private final TaskProgressRollupService taskProgressRollupService;
 
     public TaskCommandService(TaskMapper taskMapper,
                               TaskQueryService taskQueryService,
                               ProjectMapper projectMapper,
-                              ProjectMemberMapper projectMemberMapper,
-                              UserMapper userMapper) {
+                              UserMapper userMapper,
+                              ProjectPermissionService projectPermissionService,
+                              NotificationService notificationService,
+                              TaskProgressRollupService taskProgressRollupService) {
         this.taskMapper = taskMapper;
         this.taskQueryService = taskQueryService;
         this.projectMapper = projectMapper;
-        this.projectMemberMapper = projectMemberMapper;
         this.userMapper = userMapper;
+        this.projectPermissionService = projectPermissionService;
+        this.notificationService = notificationService;
+        this.taskProgressRollupService = taskProgressRollupService;
     }
 
     @Transactional
     public TaskDetailVO create(Long projectId, CreateTaskDto dto) {
+        projectPermissionService.ensureProjectOwner(projectId);
         ensureProjectExists(projectId);
-        validateTaskRelations(projectId, dto.getParentTaskId(), dto.getAssigneeId());
+        validateTaskRelations(projectId, null, dto.getParentTaskId(), dto.getAssigneeId());
         LocalDateTime now = LocalDateTime.now();
 
         TaskEntity entity = new TaskEntity();
@@ -67,12 +74,14 @@ public class TaskCommandService {
         entity.setDescription(dto.getDescription());
         entity.setTaskType(parseTaskType(dto.getTaskType()).name());
         entity.setPriority(parsePriority(dto.getPriority()).name());
-        String taskStatus = dto.getStatus() == null || dto.getStatus().isBlank()
+        String requestedStatus = dto.getStatus() == null || dto.getStatus().isBlank()
                 ? TaskStatusEnum.TODO.name()
-                : parseStatus(dto.getStatus()).name();
-        entity.setStatus(taskStatus);
+                : dto.getStatus();
+        validateExplicitCompletionStatus(dto.getProgress(), dto.getStatus());
+        TaskStatusEnum taskStatus = normalizeStatus(dto.getProgress(), requestedStatus, true);
+        entity.setStatus(taskStatus.name());
         entity.setProgress(normalizeProgress(dto.getProgress(), taskStatus));
-        entity.setAssigneeId(dto.getAssigneeId());
+        entity.setAssigneeId(resolveAssigneeForStatus(dto.getAssigneeId(), taskStatus));
         entity.setPlannedStartDate(dto.getPlannedStartDate());
         entity.setPlannedEndDate(dto.getPlannedEndDate());
         entity.setPlannedHours(dto.getPlannedHours() == null ? BigDecimal.ZERO : dto.getPlannedHours());
@@ -87,64 +96,108 @@ public class TaskCommandService {
         entity.setUpdatedAt(now);
         entity.setDeleted(0);
         taskMapper.insert(entity);
+        taskProgressRollupService.syncAffected(projectId, List.of(entity.getId()));
+        notificationService.notifyTaskAssigned(entity.getAssigneeId(), projectId, entity.getId(), entity.getName(), false);
         return taskQueryService.detail(projectId, entity.getId());
     }
 
     @Transactional
     public TaskDetailVO update(Long projectId, Long taskId, UpdateTaskDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureProjectExists(projectId);
         TaskEntity entity = requireTask(projectId, taskId);
-        validateTaskRelations(projectId, dto.getParentTaskId(), dto.getAssigneeId());
-        entity.setParentTaskId(dto.getParentTaskId());
-        entity.setWbsId(dto.getWbsId());
-        entity.setMilestoneId(dto.getMilestoneId());
+        boolean canManageTask = projectPermissionService.isProjectOwner(projectId);
+        ensureTaskUpdatePermission(projectId, entity, canManageTask);
+        Long originalParentTaskId = entity.getParentTaskId();
+        Long originalAssigneeId = entity.getAssigneeId();
+        Long targetParentTaskId = canManageTask ? dto.getParentTaskId() : entity.getParentTaskId();
+        Long targetAssigneeId = canManageTask ? dto.getAssigneeId() : entity.getAssigneeId();
+        validateTaskRelations(projectId, taskId, targetParentTaskId, targetAssigneeId);
+        entity.setParentTaskId(targetParentTaskId);
+        entity.setWbsId(canManageTask ? dto.getWbsId() : entity.getWbsId());
+        entity.setMilestoneId(canManageTask ? dto.getMilestoneId() : entity.getMilestoneId());
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
-        entity.setTaskType(parseTaskType(dto.getTaskType()).name());
-        entity.setPriority(parsePriority(dto.getPriority()).name());
-        entity.setStatus(dto.getStatus() == null || dto.getStatus().isBlank() ? entity.getStatus() : parseStatus(dto.getStatus()).name());
-        entity.setProgress(normalizeProgress(dto.getProgress(), entity.getStatus()));
-        entity.setAssigneeId(dto.getAssigneeId());
+        entity.setTaskType(canManageTask ? parseTaskType(dto.getTaskType()).name() : entity.getTaskType());
+        entity.setPriority(canManageTask ? parsePriority(dto.getPriority()).name() : entity.getPriority());
+        String requestedStatus = canManageTask
+                ? (dto.getStatus() == null || dto.getStatus().isBlank() ? entity.getStatus() : dto.getStatus())
+                : entity.getStatus();
+        BigDecimal requestedProgress = canManageTask
+                ? (dto.getProgress() == null ? entity.getProgress() : dto.getProgress())
+                : entity.getProgress();
+        if (canManageTask) {
+            validateExplicitCompletionStatus(dto.getProgress(), dto.getStatus());
+        }
+        TaskStatusEnum normalizedStatus = normalizeStatus(requestedProgress, requestedStatus, canManageTask);
+        entity.setStatus(normalizedStatus.name());
+        entity.setProgress(normalizeProgress(requestedProgress, normalizedStatus));
+        entity.setAssigneeId(resolveAssigneeForStatus(targetAssigneeId, normalizedStatus));
         entity.setPlannedStartDate(dto.getPlannedStartDate());
         entity.setPlannedEndDate(dto.getPlannedEndDate());
         entity.setPlannedHours(dto.getPlannedHours() == null ? BigDecimal.ZERO : dto.getPlannedHours());
-        entity.setSortOrder(dto.getSortOrder() == null ? entity.getSortOrder() : dto.getSortOrder());
-        entity.setRemark(dto.getRemark());
+        entity.setSortOrder(canManageTask && dto.getSortOrder() != null ? dto.getSortOrder() : entity.getSortOrder());
+        entity.setRemark(canManageTask ? dto.getRemark() : entity.getRemark());
         entity.setUpdatedBy(UserContextHolder.getUserId());
         entity.setUpdatedAt(LocalDateTime.now());
         taskMapper.update(entity);
+        List<Long> affectedTaskIds = new ArrayList<>();
+        affectedTaskIds.add(taskId);
+        affectedTaskIds.add(originalParentTaskId);
+        affectedTaskIds.add(entity.getParentTaskId());
+        taskProgressRollupService.syncAffected(projectId, affectedTaskIds);
+        if (!Objects.equals(originalAssigneeId, entity.getAssigneeId()) && entity.getAssigneeId() != null) {
+            notificationService.notifyTaskAssigned(
+                    entity.getAssigneeId(),
+                    projectId,
+                    entity.getId(),
+                    entity.getName(),
+                    originalAssigneeId != null
+            );
+        }
         return taskQueryService.detail(projectId, taskId);
     }
 
     @Transactional
     public void delete(Long projectId, Long taskId) {
+        projectPermissionService.ensureProjectOwner(projectId);
         ensureProjectExists(projectId);
-        requireTask(projectId, taskId);
+        TaskEntity entity = requireTask(projectId, taskId);
         taskMapper.softDelete(projectId, taskId, UserContextHolder.getUserId(), LocalDateTime.now());
+        List<Long> affectedTaskIds = new ArrayList<>();
+        affectedTaskIds.add(entity.getParentTaskId());
+        taskProgressRollupService.syncAffected(projectId, affectedTaskIds);
     }
 
     @Transactional
     public TaskDetailVO updateProgress(Long projectId, Long taskId, UpdateTaskProgressDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureProjectExists(projectId);
         TaskEntity entity = requireTask(projectId, taskId);
-        ensureProgressPermission(entity);
-        BigDecimal progress = normalizeProgress(dto.getProgress(), dto.getStatus());
-        TaskStatusEnum status = parseStatus(dto.getStatus());
+        ensureProgressPermission(projectId, entity);
+        boolean canManageTask = projectPermissionService.isProjectOwner(projectId);
+        validateExplicitCompletionStatus(dto.getProgress(), dto.getStatus());
+        TaskStatusEnum status = normalizeStatus(dto.getProgress(), dto.getStatus(), canManageTask);
+        BigDecimal progress = normalizeProgress(dto.getProgress(), status);
+        Long nextAssigneeId = resolveAssigneeForStatus(entity.getAssigneeId(), status);
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime actualStartDate = status == TaskStatusEnum.IN_PROGRESS ? now : null;
+        LocalDateTime actualStartDate = status == TaskStatusEnum.TODO ? null : now;
         LocalDateTime actualEndDate = status == TaskStatusEnum.DONE ? now : null;
-        taskMapper.updateProgress(projectId, taskId, status.name(), progress, dto.getRemark(),
+        taskMapper.updateProgress(projectId, taskId, status.name(), progress, nextAssigneeId, dto.getRemark(),
                 actualStartDate, actualEndDate, UserContextHolder.getUserId(), now);
+        taskProgressRollupService.syncAffected(projectId, List.of(taskId));
         return taskQueryService.detail(projectId, taskId);
     }
 
     public List<TaskDependencyVO> listDependencies(Long projectId) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         ensureProjectExists(projectId);
         return taskMapper.selectDependenciesByProjectId(projectId);
     }
 
     @Transactional
     public TaskDependencyVO createDependency(Long projectId, CreateTaskDependencyDto dto) {
+        projectPermissionService.ensureProjectOwner(projectId);
         ensureProjectExists(projectId);
         if (dto.getPredecessorTaskId().equals(dto.getSuccessorTaskId())) {
             throw new IllegalArgumentException("predecessor and successor cannot be the same task");
@@ -166,6 +219,7 @@ public class TaskCommandService {
 
     @Transactional
     public void deleteDependency(Long projectId, Long id) {
+        projectPermissionService.ensureProjectOwner(projectId);
         ensureProjectExists(projectId);
         requireDependency(projectId, id);
         taskMapper.deleteDependency(projectId, id);
@@ -173,6 +227,7 @@ public class TaskCommandService {
 
     @Transactional
     public CommentVO createComment(Long projectId, Long taskId, CreateTaskCommentDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureProjectExists(projectId);
         requireTask(projectId, taskId);
         if (dto.getReplyToId() != null) {
@@ -195,9 +250,15 @@ public class TaskCommandService {
 
     @Transactional
     public void deleteComment(Long projectId, Long taskId, Long id) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureProjectExists(projectId);
         requireTask(projectId, taskId);
-        requireComment(projectId, id);
+        CommentVO comment = requireComment(projectId, id);
+        Long currentUserId = UserContextHolder.getUserId();
+        if (!projectPermissionService.isProjectOwner(projectId)
+                && (currentUserId == null || !currentUserId.equals(comment.getUserId()))) {
+            throw new IllegalArgumentException("no permission to delete this comment");
+        }
         taskMapper.softDeleteComment(projectId, id, LocalDateTime.now());
     }
 
@@ -207,9 +268,12 @@ public class TaskCommandService {
         }
     }
 
-    private void validateTaskRelations(Long projectId, Long parentTaskId, Long assigneeId) {
+    private void validateTaskRelations(Long projectId, Long taskId, Long parentTaskId, Long assigneeId) {
         if (parentTaskId != null) {
-            requireTask(projectId, parentTaskId);
+            if (taskId != null && taskId.equals(parentTaskId)) {
+                throw new IllegalArgumentException("task cannot be its own parent");
+            }
+            ensureNoParentCycle(projectId, taskId, requireTask(projectId, parentTaskId));
         }
         if (assigneeId != null && userMapper.selectById(assigneeId) == null) {
             throw new IllegalArgumentException("task assignee not found: " + assigneeId);
@@ -219,33 +283,81 @@ public class TaskCommandService {
         }
     }
 
-    private boolean isAssignableProjectUser(Long projectId, Long userId) {
-        ProjectEntity project = projectMapper.selectEntityById(projectId);
-        if (project != null && userId.equals(project.getOwnerId())) {
-            return true;
+    private void ensureNoParentCycle(Long projectId, Long taskId, TaskEntity parentTask) {
+        if (taskId == null || parentTask == null) {
+            return;
         }
-        return projectMemberMapper.countActiveMemberByProjectAndUser(projectId, userId) > 0;
+        TaskEntity current = parentTask;
+        while (current != null) {
+            if (taskId.equals(current.getId())) {
+                throw new IllegalArgumentException("task parent cycle detected");
+            }
+            Long nextParentId = current.getParentTaskId();
+            current = nextParentId == null ? null : taskMapper.selectEntityById(projectId, nextParentId);
+        }
     }
 
-    private void ensureProgressPermission(TaskEntity entity) {
+    private boolean isAssignableProjectUser(Long projectId, Long userId) {
+        return projectPermissionService.isAssignableProjectUser(projectId, userId);
+    }
+
+    private void ensureProgressPermission(Long projectId, TaskEntity entity) {
         var authUser = UserContextHolder.get();
         if (authUser == null) {
             throw new IllegalArgumentException("user not authenticated");
         }
-        var roleCodes = authUser.getRoleCodes();
-        boolean isPrivileged = roleCodes != null && (
-                roleCodes.contains(SystemRoleEnum.SYS_ADMIN.name())
-                        || roleCodes.contains(SystemRoleEnum.PROJECT_MANAGER.name())
-        );
-        if (isPrivileged) {
+        if (projectPermissionService.isProjectOwner(projectId)) {
             return;
         }
-        if (roleCodes != null && roleCodes.contains(SystemRoleEnum.TEAM_MEMBER.name())
-                && authUser.getUserId() != null
-                && authUser.getUserId().equals(entity.getAssigneeId())) {
+        if (TaskStatusEnum.DONE.name().equals(entity.getStatus())) {
+            throw new IllegalArgumentException("accepted tasks can only be reopened by the project owner");
+        }
+        Long effectiveAssigneeId = resolveEffectiveAssigneeForTask(projectId, entity);
+        if (authUser.getUserId() != null
+                && authUser.getUserId().equals(effectiveAssigneeId)) {
             return;
         }
-        throw new IllegalArgumentException("team members can only update progress for their assigned tasks");
+        throw new IllegalArgumentException("participants can only update progress for their assigned tasks");
+    }
+
+    private void ensureTaskUpdatePermission(Long projectId, TaskEntity entity, boolean canManageTask) {
+        if (canManageTask) {
+            return;
+        }
+        var authUser = UserContextHolder.get();
+        if (authUser == null || authUser.getUserId() == null) {
+            throw new IllegalArgumentException("user not authenticated");
+        }
+        if (TaskStatusEnum.DONE.name().equals(entity.getStatus())) {
+            throw new IllegalArgumentException("accepted tasks can only be edited by the project owner");
+        }
+        Long effectiveAssigneeId = resolveEffectiveAssigneeForTask(projectId, entity);
+        if (authUser.getUserId().equals(effectiveAssigneeId)) {
+            return;
+        }
+        throw new IllegalArgumentException("participants can only edit their assigned tasks");
+    }
+
+    private Long resolveEffectiveAssigneeForTask(Long projectId, TaskEntity task) {
+        if (task == null) {
+            return null;
+        }
+        TaskEntity current = task;
+        java.util.HashSet<Long> visited = new java.util.HashSet<>();
+        while (current != null && visited.add(current.getId())) {
+            if (current.getAssigneeId() != null) {
+                return current.getAssigneeId();
+            }
+            if (current.getParentTaskId() == null) {
+                return null;
+            }
+            current = taskMapper.selectEntityById(projectId, current.getParentTaskId());
+        }
+        return null;
+    }
+
+    private Long resolveAssigneeForStatus(Long assigneeId, TaskStatusEnum status) {
+        return assigneeId;
     }
 
     private TaskEntity requireTask(Long projectId, Long taskId) {
@@ -315,11 +427,57 @@ public class TaskCommandService {
         }
     }
 
-    private BigDecimal normalizeProgress(BigDecimal progress, String status) {
+    private TaskStatusEnum normalizeStatus(BigDecimal progress, String status, boolean canFinalizeTask) {
+        String requestedStatus = status == null || status.isBlank() ? TaskStatusEnum.TODO.name() : parseStatus(status).name();
+        BigDecimal value = clampProgress(progress);
+        if (value.compareTo(BigDecimal.ZERO) <= 0) {
+            return TaskStatusEnum.TODO;
+        }
+        if (TaskStatusEnum.PENDING_REVIEW.name().equals(requestedStatus)
+                && value.compareTo(new BigDecimal("100")) >= 0) {
+            return TaskStatusEnum.PENDING_REVIEW;
+        }
+        if (value.compareTo(new BigDecimal("100")) >= 0) {
+            return canFinalizeTask ? TaskStatusEnum.DONE : TaskStatusEnum.PENDING_REVIEW;
+        }
+        if (TaskStatusEnum.BLOCKED.name().equals(requestedStatus)) {
+            return TaskStatusEnum.BLOCKED;
+        }
+        return TaskStatusEnum.IN_PROGRESS;
+    }
+
+    private void validateExplicitCompletionStatus(BigDecimal progress, String status) {
+        if (status == null || status.isBlank()) {
+            return;
+        }
+        TaskStatusEnum requestedStatus = parseStatus(status);
+        if (requestedStatus != TaskStatusEnum.PENDING_REVIEW && requestedStatus != TaskStatusEnum.DONE) {
+            return;
+        }
+        if (clampProgress(progress).compareTo(new BigDecimal("100")) < 0) {
+            throw new IllegalArgumentException("progress must reach 100 before submitting completion");
+        }
+    }
+
+    private BigDecimal normalizeProgress(BigDecimal progress, TaskStatusEnum status) {
+        BigDecimal value = clampProgress(progress);
+        if (status == TaskStatusEnum.TODO) {
+            return BigDecimal.ZERO;
+        }
+        if (status == TaskStatusEnum.DONE || status == TaskStatusEnum.PENDING_REVIEW) {
+            return new BigDecimal("100");
+        }
+        if (value.compareTo(new BigDecimal("100")) >= 0) {
+            return new BigDecimal("99");
+        }
+        return value;
+    }
+
+    private BigDecimal clampProgress(BigDecimal progress) {
         BigDecimal value = progress == null ? BigDecimal.ZERO : progress;
         if (value.compareTo(BigDecimal.ZERO) < 0 || value.compareTo(new BigDecimal("100")) > 0) {
             throw new IllegalArgumentException("progress must be between 0 and 100");
         }
-        return TaskStatusEnum.DONE.name().equals(status) ? new BigDecimal("100") : value;
+        return value;
     }
 }

@@ -72,6 +72,24 @@ export function getProjectTemplates(params = {}) {
   return http(`/project-templates${query ? `?${query}` : ''}`)
 }
 
+export function getProjectTemplateDetail(id) {
+  return http(`/project-templates/${id}`)
+}
+
+export function createProjectTemplate(payload) {
+  return http('/project-templates', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateProjectTemplate(id, payload) {
+  return http(`/project-templates/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function createProjectFromTemplate(payload) {
   return http('/projects/from-template', {
     method: 'POST',
@@ -93,6 +111,10 @@ export function closeProject(projectId) {
 
 export function getProjectMembers(projectId) {
   return http(`/projects/${projectId}/members`)
+}
+
+export function getProjectMemberCandidates(projectId) {
+  return http(`/projects/${projectId}/members/candidates`)
 }
 
 export function addProjectMember(projectId, payload) {

@@ -1,5 +1,21 @@
 import { http } from './http'
 
+export function getNotifications() {
+  return http('/notifications')
+}
+
+export function markNotificationRead(id) {
+  return http(`/notifications/${id}/read`, {
+    method: 'PATCH',
+  })
+}
+
+export function markAllNotificationsRead() {
+  return http('/notifications/read-all', {
+    method: 'PATCH',
+  })
+}
+
 export function getAcceptanceItems(projectId) {
   return http(`/projects/${projectId}/acceptance-items`)
 }

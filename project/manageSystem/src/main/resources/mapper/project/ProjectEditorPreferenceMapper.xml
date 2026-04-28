@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.ProjectEditorPreferenceMapper">
+
+    <resultMap id="ProjectEditorPreferenceEntityMap" type="com.manage.managesystem.entity.ProjectEditorPreferenceEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="ganttAppearanceJson" column="gantt_appearance_json"/>
+        <result property="wbsConfigJson" column="wbs_config_json"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedBy" column="updated_by"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <select id="selectByProjectId" resultMap="ProjectEditorPreferenceEntityMap">
+        select id,
+               project_id,
+               gantt_appearance_json,
+               wbs_config_json,
+               created_by,
+               created_at,
+               updated_by,
+               updated_at,
+               is_deleted
+        from project_editor_preference
+        where project_id = #{projectId}
+          and is_deleted = 0
+        limit 1
+    </select>
+
+    <insert id="insert" parameterType="com.manage.managesystem.entity.ProjectEditorPreferenceEntity">
+        insert into project_editor_preference (
+            id, project_id, gantt_appearance_json, wbs_config_json,
+            created_by, created_at, updated_by, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{ganttAppearanceJson}, #{wbsConfigJson},
+            #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.manage.managesystem.entity.ProjectEditorPreferenceEntity">
+        update project_editor_preference
+        set gantt_appearance_json = #{ganttAppearanceJson},
+            wbs_config_json = #{wbsConfigJson},
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and is_deleted = 0
+    </update>
+
+</mapper>

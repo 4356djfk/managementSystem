@@ -13,13 +13,18 @@ import java.util.List;
 public class ProjectViewService {
     private final ProjectViewMapper projectViewMapper;
     private final ProjectMapper projectMapper;
+    private final ProjectPermissionService projectPermissionService;
 
-    public ProjectViewService(ProjectViewMapper projectViewMapper, ProjectMapper projectMapper) {
+    public ProjectViewService(ProjectViewMapper projectViewMapper,
+                              ProjectMapper projectMapper,
+                              ProjectPermissionService projectPermissionService) {
         this.projectViewMapper = projectViewMapper;
         this.projectMapper = projectMapper;
+        this.projectPermissionService = projectPermissionService;
     }
 
     public List<CalendarEventVO> projectCalendar(Long projectId) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         ensureProjectExists(projectId);
         return projectViewMapper.selectProjectCalendar(projectId);
     }
@@ -29,6 +34,7 @@ public class ProjectViewService {
     }
 
     public ClosureCheckVO closureCheck(Long projectId) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         ensureProjectExists(projectId);
         return projectViewMapper.selectClosureCheck(projectId);
     }

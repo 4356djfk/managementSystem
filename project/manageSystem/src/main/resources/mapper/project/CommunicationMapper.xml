@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.CommunicationMapper">
+
+    <resultMap id="CommunicationMatrixEntityMap" type="com.manage.managesystem.entity.CommunicationMatrixEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="senderRole" column="sender_role"/>
+        <result property="receiverRole" column="receiver_role"/>
+        <result property="channel" column="channel"/>
+        <result property="frequency" column="frequency"/>
+        <result property="topic" column="topic"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="CommunicationMatrixVoMap" type="com.manage.managesystem.vo.CommunicationMatrixVO">
+        <id property="id" column="id"/>
+        <result property="senderRole" column="sender_role"/>
+        <result property="receiverRole" column="receiver_role"/>
+        <result property="channel" column="channel"/>
+        <result property="frequency" column="frequency"/>
+        <result property="topic" column="topic"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="MeetingEntityMap" type="com.manage.managesystem.entity.MeetingEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="meetingType" column="meeting_type"/>
+        <result property="title" column="title"/>
+        <result property="scheduledAt" column="scheduled_at"/>
+        <result property="durationMinutes" column="duration_minutes"/>
+        <result property="hostId" column="host_id"/>
+        <result property="location" column="location"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="MeetingVoMap" type="com.manage.managesystem.vo.MeetingVO">
+        <id property="id" column="id"/>
+        <result property="meetingType" column="meeting_type"/>
+        <result property="title" column="title"/>
+        <result property="scheduledAt" column="scheduled_at"/>
+        <result property="durationMinutes" column="duration_minutes"/>
+        <result property="hostId" column="host_id"/>
+        <result property="hostName" column="host_name"/>
+        <result property="location" column="location"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="CommunicationRecordEntityMap" type="com.manage.managesystem.entity.CommunicationRecordEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="meetingId" column="meeting_id"/>
+        <result property="recordType" column="record_type"/>
+        <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="recorderId" column="recorder_id"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="CommunicationRecordVoMap" type="com.manage.managesystem.vo.CommunicationRecordVO">
+        <id property="id" column="id"/>
+        <result property="meetingId" column="meeting_id"/>
+        <result property="meetingTitle" column="meeting_title"/>
+        <result property="recordType" column="record_type"/>
+        <result property="title" column="title"/>
+        <result property="content" column="content"/>
+        <result property="recorderId" column="recorder_id"/>
+        <result property="recorderName" column="recorder_name"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectCommunicationMatrixByProjectId" resultMap="CommunicationMatrixVoMap">
+        select id,
+               sender_role,
+               receiver_role,
+               channel,
+               frequency,
+               topic,
+               created_at,
+               updated_at
+        from communication_matrix
+        where project_id = #{projectId}
+        <if test="query != null and query.channel != null and query.channel != ''">
+            and channel = #{query.channel}
+        </if>
+        <if test="query != null and query.senderRole != null and query.senderRole != ''">
+            and sender_role like concat('%', #{query.senderRole}, '%')
+        </if>
+        <if test="query != null and query.receiverRole != null and query.receiverRole != ''">
+            and receiver_role like concat('%', #{query.receiverRole}, '%')
+        </if>
+        order by updated_at desc, created_at desc
+    </select>
+
+    <select id="selectCommunicationMatrixById" resultMap="CommunicationMatrixVoMap">
+        select id,
+               sender_role,
+               receiver_role,
+               channel,
+               frequency,
+               topic,
+               created_at,
+               updated_at
+        from communication_matrix
+        where project_id = #{projectId}
+          and id = #{id}
+    </select>
+
+    <select id="selectCommunicationMatrixEntityById" resultMap="CommunicationMatrixEntityMap">
+        select id,
+               project_id,
+               sender_role,
+               receiver_role,
+               channel,
+               frequency,
+               topic,
+               created_at,
+               updated_at
+        from communication_matrix
+        where project_id = #{projectId}
+          and id = #{id}
+    </select>
+
+    <insert id="insertCommunicationMatrix" parameterType="com.manage.managesystem.entity.CommunicationMatrixEntity">
+        insert into communication_matrix (
+            id, project_id, sender_role, receiver_role, channel, frequency, topic, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{senderRole}, #{receiverRole}, #{channel}, #{frequency}, #{topic}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateCommunicationMatrix" parameterType="com.manage.managesystem.entity.CommunicationMatrixEntity">
+        update communication_matrix
+        set sender_role = #{senderRole},
+            receiver_role = #{receiverRole},
+            channel = #{channel},
+            frequency = #{frequency},
+            topic = #{topic},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+    </update>
+
+    <delete id="deleteCommunicationMatrix">
+        delete
+        from communication_matrix
+        where project_id = #{projectId}
+          and id = #{id}
+    </delete>
+
+    <select id="selectMeetingsByProjectId" resultMap="MeetingVoMap">
+        select m.id,
+               m.meeting_type,
+               m.title,
+               m.scheduled_at,
+               m.duration_minutes,
+               m.host_id,
+               u.real_name as host_name,
+               m.location,
+               m.status,
+               m.created_at,
+               m.updated_at
+        from meeting_plan m
+                 left join sys_user u on u.id = m.host_id
+        where m.project_id = #{projectId}
+        <if test="query != null and query.meetingType != null and query.meetingType != ''">
+            and m.meeting_type = #{query.meetingType}
+        </if>
+        <if test="query != null and query.status != null and query.status != ''">
+            and m.status = #{query.status}
+        </if>
+        <if test="query != null and query.hostId != null">
+            and m.host_id = #{query.hostId}
+        </if>
+        order by m.scheduled_at desc, m.updated_at desc
+    </select>
+
+    <select id="selectMeetingById" resultMap="MeetingVoMap">
+        select m.id,
+               m.meeting_type,
+               m.title,
+               m.scheduled_at,
+               m.duration_minutes,
+               m.host_id,
+               u.real_name as host_name,
+               m.location,
+               m.status,
+               m.created_at,
+               m.updated_at
+        from meeting_plan m
+                 left join sys_user u on u.id = m.host_id
+        where m.project_id = #{projectId}
+          and m.id = #{id}
+    </select>
+
+    <select id="selectMeetingEntityById" resultMap="MeetingEntityMap">
+        select id,
+               project_id,
+               meeting_type,
+               title,
+               scheduled_at,
+               duration_minutes,
+               host_id,
+               location,
+               status,
+               created_at,
+               updated_at
+        from meeting_plan
+        where project_id = #{projectId}
+          and id = #{id}
+    </select>
+
+    <insert id="insertMeeting" parameterType="com.manage.managesystem.entity.MeetingEntity">
+        insert into meeting_plan (
+            id, project_id, meeting_type, title, scheduled_at, duration_minutes, host_id, location, status, created_at, updated_at
+        ) values (
+            #{id}, #{projectId}, #{meetingType}, #{title}, #{scheduledAt}, #{durationMinutes}, #{hostId}, #{location}, #{status}, #{createdAt}, #{updatedAt}
+        )
+    </insert>
+
+    <update id="updateMeeting" parameterType="com.manage.managesystem.entity.MeetingEntity">
+        update meeting_plan
+        set meeting_type = #{meetingType},
+            title = #{title},
+            scheduled_at = #{scheduledAt},
+            duration_minutes = #{durationMinutes},
+            host_id = #{hostId},
+            location = #{location},
+            status = #{status},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+    </update>
+
+    <delete id="deleteMeeting">
+        delete
+        from meeting_plan
+        where project_id = #{projectId}
+          and id = #{id}
+    </delete>
+
+    <select id="countCommunicationRecordsByMeetingId" resultType="int">
+        select count(1)
+        from communication_record
+        where project_id = #{projectId}
+          and meeting_id = #{meetingId}
+          and is_deleted = 0
+    </select>
+
+    <select id="selectCommunicationRecordsByProjectId" resultMap="CommunicationRecordVoMap">
+        select cr.id,
+               cr.meeting_id,
+               m.title as meeting_title,
+               cr.record_type,
+               cr.title,
+               cr.content,
+               cr.recorder_id,
+               u.real_name as recorder_name,
+               cr.created_at,
+               cr.updated_at
+        from communication_record cr
+                 left join meeting_plan m on m.id = cr.meeting_id
+                 left join sys_user u on u.id = cr.recorder_id
+        where cr.project_id = #{projectId}
+          and cr.is_deleted = 0
+        <if test="query != null and query.recordType != null and query.recordType != ''">
+            and cr.record_type = #{query.recordType}
+        </if>
+        <if test="query != null and query.meetingId != null">
+            and cr.meeting_id = #{query.meetingId}
+        </if>
+        <if test="query != null and query.recorderId != null">
+            and cr.recorder_id = #{query.recorderId}
+        </if>
+        order by cr.updated_at desc, cr.created_at desc
+    </select>
+
+    <select id="selectCommunicationRecordById" resultMap="CommunicationRecordVoMap">
+        select cr.id,
+               cr.meeting_id,
+               m.title as meeting_title,
+               cr.record_type,
+               cr.title,
+               cr.content,
+               cr.recorder_id,
+               u.real_name as recorder_name,
+               cr.created_at,
+               cr.updated_at
+        from communication_record cr
+                 left join meeting_plan m on m.id = cr.meeting_id
+                 left join sys_user u on u.id = cr.recorder_id
+        where cr.project_id = #{projectId}
+          and cr.id = #{id}
+          and cr.is_deleted = 0
+    </select>
+
+    <select id="selectCommunicationRecordEntityById" resultMap="CommunicationRecordEntityMap">
+        select id,
+               project_id,
+               meeting_id,
+               record_type,
+               title,
+               content,
+               recorder_id,
+               created_at,
+               updated_at,
+               is_deleted
+        from communication_record
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertCommunicationRecord" parameterType="com.manage.managesystem.entity.CommunicationRecordEntity">
+        insert into communication_record (
+            id, project_id, meeting_id, record_type, title, content, recorder_id, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{meetingId}, #{recordType}, #{title}, #{content}, #{recorderId}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updateCommunicationRecord" parameterType="com.manage.managesystem.entity.CommunicationRecordEntity">
+        update communication_record
+        set meeting_id = #{meetingId},
+            record_type = #{recordType},
+            title = #{title},
+            content = #{content},
+            recorder_id = #{recorderId},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeleteCommunicationRecord">
+        update communication_record
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+</mapper>

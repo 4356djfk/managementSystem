@@ -34,19 +34,19 @@ public class MilestoneController {
     }
 
     @PostMapping
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<MilestoneVO> create(@PathVariable Long projectId, @Valid @RequestBody CreateMilestoneDto dto) {
         return ApiResponse.success(milestoneService.create(projectId, dto));
     }
 
     @PutMapping("/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<MilestoneVO> update(@PathVariable Long projectId, @PathVariable Long id, @Valid @RequestBody UpdateMilestoneDto dto) {
         return ApiResponse.success(milestoneService.update(projectId, id, dto));
     }
 
     @DeleteMapping("/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> delete(@PathVariable Long projectId, @PathVariable Long id) {
         milestoneService.delete(projectId, id);
         return ApiResponse.success(null);

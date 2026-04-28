@@ -35,7 +35,7 @@ public class ChangeRequestController {
     }
 
     @PostMapping
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER, SystemRoleEnum.TEAM_MEMBER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ChangeRequestVO> create(@PathVariable Long projectId, @Valid @RequestBody CreateChangeRequestDto dto) {
         return ApiResponse.success(changeRequestService.create(projectId, dto));
     }
@@ -46,7 +46,7 @@ public class ChangeRequestController {
     }
 
     @PostMapping("/{id}/approve")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ChangeRequestVO> approve(@PathVariable Long projectId, @PathVariable Long id, @Valid @RequestBody ApproveChangeRequestDto dto) {
         return ApiResponse.success(changeRequestService.approve(projectId, id, dto));
     }

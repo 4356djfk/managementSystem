@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.QualityMapper">
+
+    <resultMap id="QualityPlanEntityMap" type="com.manage.managesystem.entity.QualityPlanEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="title" column="title"/>
+        <result property="qualityStandard" column="quality_standard"/>
+        <result property="acceptanceRule" column="acceptance_rule"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="QualityPlanVoMap" type="com.manage.managesystem.vo.QualityPlanVO">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="qualityStandard" column="quality_standard"/>
+        <result property="acceptanceRule" column="acceptance_rule"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="ownerName" column="owner_name"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="QualityActivityEntityMap" type="com.manage.managesystem.entity.QualityActivityEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="qualityPlanId" column="quality_plan_id"/>
+        <result property="activityName" column="activity_name"/>
+        <result property="activityType" column="activity_type"/>
+        <result property="plannedDate" column="planned_date"/>
+        <result property="actualDate" column="actual_date"/>
+        <result property="result" column="result"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="QualityActivityVoMap" type="com.manage.managesystem.vo.QualityActivityVO">
+        <id property="id" column="id"/>
+        <result property="qualityPlanId" column="quality_plan_id"/>
+        <result property="qualityPlanTitle" column="quality_plan_title"/>
+        <result property="activityName" column="activity_name"/>
+        <result property="activityType" column="activity_type"/>
+        <result property="plannedDate" column="planned_date"/>
+        <result property="actualDate" column="actual_date"/>
+        <result property="result" column="result"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="ownerName" column="owner_name"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="QualityMetricEntityMap" type="com.manage.managesystem.entity.QualityMetricEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="metricName" column="metric_name"/>
+        <result property="metricValue" column="metric_value"/>
+        <result property="metricUnit" column="metric_unit"/>
+        <result property="statisticDate" column="statistic_date"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="QualityMetricVoMap" type="com.manage.managesystem.vo.QualityMetricVO">
+        <id property="id" column="id"/>
+        <result property="metricName" column="metric_name"/>
+        <result property="metricValue" column="metric_value"/>
+        <result property="metricUnit" column="metric_unit"/>
+        <result property="statisticDate" column="statistic_date"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="selectPlansByProjectId" resultMap="QualityPlanVoMap">
+        select qp.id,
+               qp.title,
+               qp.quality_standard,
+               qp.acceptance_rule,
+               qp.owner_id,
+               u.real_name as owner_name,
+               qp.status,
+               qp.created_at,
+               qp.updated_at
+        from quality_plan qp
+                 left join sys_user u on u.id = qp.owner_id
+        where qp.project_id = #{projectId}
+          and qp.is_deleted = 0
+        <if test="query != null and query.status != null and query.status != ''">
+            and qp.status = #{query.status}
+        </if>
+        <if test="query != null and query.ownerId != null">
+            and qp.owner_id = #{query.ownerId}
+        </if>
+        order by qp.updated_at desc, qp.created_at desc
+    </select>
+
+    <select id="selectPlanById" resultMap="QualityPlanVoMap">
+        select qp.id,
+               qp.title,
+               qp.quality_standard,
+               qp.acceptance_rule,
+               qp.owner_id,
+               u.real_name as owner_name,
+               qp.status,
+               qp.created_at,
+               qp.updated_at
+        from quality_plan qp
+                 left join sys_user u on u.id = qp.owner_id
+        where qp.project_id = #{projectId}
+          and qp.id = #{id}
+          and qp.is_deleted = 0
+    </select>
+
+    <select id="selectPlanEntityById" resultMap="QualityPlanEntityMap">
+        select id,
+               project_id,
+               title,
+               quality_standard,
+               acceptance_rule,
+               owner_id,
+               status,
+               created_at,
+               updated_at,
+               is_deleted
+        from quality_plan
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertPlan" parameterType="com.manage.managesystem.entity.QualityPlanEntity">
+        insert into quality_plan (
+            id, project_id, title, quality_standard, acceptance_rule, owner_id, status, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{title}, #{qualityStandard}, #{acceptanceRule}, #{ownerId}, #{status}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updatePlan" parameterType="com.manage.managesystem.entity.QualityPlanEntity">
+        update quality_plan
+        set title = #{title},
+            quality_standard = #{qualityStandard},
+            acceptance_rule = #{acceptanceRule},
+            owner_id = #{ownerId},
+            status = #{status},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeletePlan">
+        update quality_plan
+        set is_deleted = 1
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="countActivitiesByPlanId" resultType="int">
+        select count(1)
+        from quality_activity
+        where project_id = #{projectId}
+          and quality_plan_id = #{qualityPlanId}
+          and is_deleted = 0
+    </select>
+
+    <select id="selectActivitiesByProjectId" resultMap="QualityActivityVoMap">
+        select qa.id,
+               qa.quality_plan_id,
+               qp.title as quality_plan_title,
+               qa.activity_name,
+               qa.activity_type,
+               qa.planned_date,
+               qa.actual_date,
+               qa.result,
+               qa.owner_id,
+               u.real_name as owner_name,
+               qa.created_at,
+               qa.updated_at
+        from quality_activity qa
+                 left join quality_plan qp on qp.id = qa.quality_plan_id
+                 left join sys_user u on u.id = qa.owner_id
+        where qa.project_id = #{projectId}
+          and qa.is_deleted = 0
+        <if test="query != null and query.qualityPlanId != null">
+            and qa.quality_plan_id = #{query.qualityPlanId}
+        </if>
+        <if test="query != null and query.activityType != null and query.activityType != ''">
+            and qa.activity_type = #{query.activityType}
+        </if>
+        <if test="query != null and query.ownerId != null">
+            and qa.owner_id = #{query.ownerId}
+        </if>
+        order by qa.planned_date desc, qa.created_at desc
+    </select>
+
+    <select id="selectActivityById" resultMap="QualityActivityVoMap">
+        select qa.id,
+               qa.quality_plan_id,
+               qp.title as quality_plan_title,
+               qa.activity_name,
+               qa.activity_type,
+               qa.planned_date,
+               qa.actual_date,
+               qa.result,
+               qa.owner_id,
+               u.real_name as owner_name,
+               qa.created_at,
+               qa.updated_at
+        from quality_activity qa
+                 left join quality_plan qp on qp.id = qa.quality_plan_id
+                 left join sys_user u on u.id = qa.owner_id
+        where qa.project_id = #{projectId}
+          and qa.id = #{id}
+          and qa.is_deleted = 0
+    </select>
+
+    <select id="selectActivityEntityById" resultMap="QualityActivityEntityMap">
+        select id,
+               project_id,
+               quality_plan_id,
+               activity_name,
+               activity_type,
+               planned_date,
+               actual_date,
+               result,
+               owner_id,
+               created_at,
+               updated_at,
+               is_deleted
+        from quality_activity
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertActivity" parameterType="com.manage.managesystem.entity.QualityActivityEntity">
+        insert into quality_activity (
+            id, project_id, quality_plan_id, activity_name, activity_type, planned_date, actual_date, result, owner_id, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{qualityPlanId}, #{activityName}, #{activityType}, #{plannedDate}, #{actualDate}, #{result}, #{ownerId}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updateActivity" parameterType="com.manage.managesystem.entity.QualityActivityEntity">
+        update quality_activity
+        set quality_plan_id = #{qualityPlanId},
+            activity_name = #{activityName},
+            activity_type = #{activityType},
+            planned_date = #{plannedDate},
+            actual_date = #{actualDate},
+            result = #{result},
+            owner_id = #{ownerId},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeleteActivity">
+        update quality_activity
+        set is_deleted = 1
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="selectMetricsByProjectId" resultMap="QualityMetricVoMap">
+        select id,
+               metric_name,
+               metric_value,
+               metric_unit,
+               statistic_date,
+               created_at
+        from quality_metric
+        where project_id = #{projectId}
+        <if test="query != null and query.metricName != null and query.metricName != ''">
+            and metric_name like concat('%', #{query.metricName}, '%')
+        </if>
+        order by statistic_date desc, created_at desc
+    </select>
+
+    <select id="selectMetricById" resultMap="QualityMetricVoMap">
+        select id,
+               metric_name,
+               metric_value,
+               metric_unit,
+               statistic_date,
+               created_at
+        from quality_metric
+        where project_id = #{projectId}
+          and id = #{id}
+    </select>
+
+    <select id="selectMetricEntityById" resultMap="QualityMetricEntityMap">
+        select id,
+               project_id,
+               metric_name,
+               metric_value,
+               metric_unit,
+               statistic_date,
+               created_at
+        from quality_metric
+        where project_id = #{projectId}
+          and id = #{id}
+    </select>
+
+    <insert id="insertMetric" parameterType="com.manage.managesystem.entity.QualityMetricEntity">
+        insert into quality_metric (
+            id, project_id, metric_name, metric_value, metric_unit, statistic_date, created_at
+        ) values (
+            #{id}, #{projectId}, #{metricName}, #{metricValue}, #{metricUnit}, #{statisticDate}, #{createdAt}
+        )
+    </insert>
+
+    <update id="updateMetric" parameterType="com.manage.managesystem.entity.QualityMetricEntity">
+        update quality_metric
+        set metric_name = #{metricName},
+            metric_value = #{metricValue},
+            metric_unit = #{metricUnit},
+            statistic_date = #{statisticDate}
+        where project_id = #{projectId}
+          and id = #{id}
+    </update>
+
+    <delete id="deleteMetric">
+        delete from quality_metric
+        where project_id = #{projectId}
+          and id = #{id}
+    </delete>
+
+</mapper>

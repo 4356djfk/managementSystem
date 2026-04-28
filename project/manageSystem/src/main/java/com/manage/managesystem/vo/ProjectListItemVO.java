@@ -36,4 +36,6 @@ public class ProjectListItemVO {
     private BigDecimal plannedBudget;
 
     private BigDecimal actualCost;
+
+    private Integer memberCount;
 }

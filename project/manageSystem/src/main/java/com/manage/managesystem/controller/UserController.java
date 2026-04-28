@@ -32,7 +32,7 @@ public class UserController {
     }
 
     @GetMapping
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN})
     public ApiResponse<PageResult<UserListItemVO>> list(UserQueryDto queryDto) {
         return ApiResponse.success(userService.listUsers(queryDto));
     }

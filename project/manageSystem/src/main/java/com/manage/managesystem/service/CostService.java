@@ -29,21 +29,29 @@ public class CostService {
     private final ProjectMapper projectMapper;
     private final TaskMapper taskMapper;
     private final ObjectMapper objectMapper;
+    private final ProjectPermissionService projectPermissionService;
 
-    public CostService(CostMapper costMapper, ProjectMapper projectMapper, TaskMapper taskMapper, ObjectMapper objectMapper) {
+    public CostService(CostMapper costMapper,
+                       ProjectMapper projectMapper,
+                       TaskMapper taskMapper,
+                       ObjectMapper objectMapper,
+                       ProjectPermissionService projectPermissionService) {
         this.costMapper = costMapper;
         this.projectMapper = projectMapper;
         this.taskMapper = taskMapper;
         this.objectMapper = objectMapper;
+        this.projectPermissionService = projectPermissionService;
     }
 
     public List<CostPlanVO> listPlans(Long projectId) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         ensureProjectExists(projectId);
         return costMapper.selectPlansByProjectId(projectId);
     }
 
     @Transactional
     public CostPlanVO createPlan(Long projectId, CreateCostPlanDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureProjectExists(projectId);
         validateTask(projectId, dto.getTaskId());
         LocalDateTime now = LocalDateTime.now();
@@ -68,6 +76,7 @@ public class CostService {
 
     @Transactional
     public CostPlanVO updatePlan(Long projectId, Long id, UpdateCostPlanDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureProjectExists(projectId);
         validateTask(projectId, dto.getTaskId());
         CostPlanEntity entity = requirePlanEntity(projectId, id);
@@ -86,6 +95,7 @@ public class CostService {
 
     @Transactional
     public CostBaselineVO createBaseline(Long projectId, CreateCostBaselineDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureProjectExists(projectId);
         Long id = IdWorker.getId();
         LocalDateTime now = LocalDateTime.now();
@@ -96,17 +106,20 @@ public class CostService {
     }
 
     public List<CostActualVO> listActuals(Long projectId) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         ensureProjectExists(projectId);
         return costMapper.selectActualsByProjectId(projectId);
     }
 
     public List<CostBaselineVO> listBaselines(Long projectId) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         ensureProjectExists(projectId);
         return costMapper.selectBaselinesByProjectId(projectId, "COST");
     }
 
     @Transactional
     public void deletePlan(Long projectId, Long id) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureProjectExists(projectId);
         requirePlanEntity(projectId, id);
         costMapper.softDeletePlan(projectId, id, UserContextHolder.getUserId(), LocalDateTime.now());
@@ -114,6 +127,7 @@ public class CostService {
 
     @Transactional
     public CostActualVO createActual(Long projectId, CreateCostActualDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureProjectExists(projectId);
         validateTask(projectId, dto.getTaskId());
         LocalDateTime now = LocalDateTime.now();
@@ -135,6 +149,7 @@ public class CostService {
 
     @Transactional
     public void deleteActual(Long projectId, Long id) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureProjectExists(projectId);
         requireActualEntity(projectId, id);
         costMapper.softDeleteActual(projectId, id, LocalDateTime.now());
@@ -142,6 +157,7 @@ public class CostService {
 
     @Transactional
     public void deleteBaseline(Long projectId, Long id) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureProjectExists(projectId);
         CostBaselineVO baseline = costMapper.selectBaselineById(projectId, id);
         if (baseline == null) {
@@ -151,6 +167,7 @@ public class CostService {
     }
 
     public EvmMetricVO evm(Long projectId) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         ensureProjectExists(projectId);
         return costMapper.selectEvmMetric(projectId);
     }

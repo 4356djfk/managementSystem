@@ -20,8 +20,6 @@ public class ProjectDetailVO extends ProjectListItemVO {
 
     private Boolean isDemo;
 
-    private Integer memberCount;
-
     private Integer openRiskCount;
 
     private Integer pendingChangeCount;

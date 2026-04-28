@@ -32,13 +32,13 @@ public class ScopeBaselineController {
     }
 
     @PostMapping
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ScopeBaselineVO> create(@PathVariable Long projectId, @Valid @RequestBody CreateScopeBaselineDto dto) {
         return ApiResponse.success(scopeBaselineService.create(projectId, dto));
     }
 
     @DeleteMapping("/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> delete(@PathVariable Long projectId, @PathVariable Long id) {
         scopeBaselineService.delete(projectId, id);
         return ApiResponse.success(null);

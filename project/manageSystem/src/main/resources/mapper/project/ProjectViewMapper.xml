@@ -46,6 +46,32 @@
         where m.project_id = #{projectId}
           and m.is_deleted = 0
           and m.planned_date is not null
+        union all
+        select m.id,
+               'MEETING' as event_type,
+               m.title as title,
+               m.scheduled_at as start_time,
+               case
+                   when m.duration_minutes is not null then date_add(m.scheduled_at, interval m.duration_minutes minute)
+                   else m.scheduled_at
+               end as end_time,
+               m.project_id,
+               m.id as biz_id
+        from meeting_plan m
+        where m.project_id = #{projectId}
+          and m.scheduled_at is not null
+        union all
+        select p.id,
+               'PROCUREMENT_DELIVERY' as event_type,
+               concat('采购交付: ', p.item_name) as title,
+               cast(concat(coalesce(p.actual_delivery_date, p.expected_delivery_date), ' 00:00:00') as datetime) as start_time,
+               cast(concat(coalesce(p.actual_delivery_date, p.expected_delivery_date), ' 23:59:59') as datetime) as end_time,
+               p.project_id,
+               p.id as biz_id
+        from procurement_item p
+        where p.project_id = #{projectId}
+          and p.is_deleted = 0
+          and coalesce(p.actual_delivery_date, p.expected_delivery_date) is not null
         order by start_time asc, id asc
     </select>
 
@@ -73,6 +99,20 @@
         where m.owner_id = #{userId}
           and m.is_deleted = 0
           and m.planned_date is not null
+        union all
+        select m.id,
+               'MEETING' as event_type,
+               m.title as title,
+               m.scheduled_at as start_time,
+               case
+                   when m.duration_minutes is not null then date_add(m.scheduled_at, interval m.duration_minutes minute)
+                   else m.scheduled_at
+               end as end_time,
+               m.project_id,
+               m.id as biz_id
+        from meeting_plan m
+        where m.host_id = #{userId}
+          and m.scheduled_at is not null
         order by start_time asc, id asc
     </select>
 

@@ -37,6 +37,17 @@
         where project_id = #{projectId}
     </select>
 
+    <select id="selectMaxVersionNumber" resultType="java.lang.Integer">
+        select coalesce(max(
+            case
+                when version_no regexp '^V[0-9]+$' then cast(substring(version_no, 2) as unsigned)
+                else null
+            end
+        ), 0)
+        from scope_baseline
+        where project_id = #{projectId}
+    </select>
+
     <select id="selectEntityById" resultType="com.manage.managesystem.entity.ScopeBaselineEntity">
         select id,
                project_id,

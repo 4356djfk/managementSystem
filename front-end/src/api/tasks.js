@@ -62,6 +62,10 @@ export function createProjectTaskComment(projectId, taskId, payload) {
   })
 }
 
+export function getProjectTaskComments(projectId, taskId) {
+  return http(`/projects/${projectId}/tasks/${taskId}/comments`)
+}
+
 export function deleteProjectTaskComment(projectId, taskId, commentId) {
   return http(`/projects/${projectId}/tasks/${taskId}/comments/${commentId}`, {
     method: 'DELETE',

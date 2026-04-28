@@ -44,6 +44,8 @@
         <result property="progress" column="progress"/>
         <result property="assigneeId" column="assignee_id"/>
         <result property="assigneeName" column="assignee_name"/>
+        <result property="directAssigneeId" column="assignee_id"/>
+        <result property="directAssigneeName" column="assignee_name"/>
         <result property="plannedStartDate" column="planned_start_date"/>
         <result property="plannedEndDate" column="planned_end_date"/>
         <result property="actualStartDate" column="actual_start_date"/>
@@ -54,6 +56,8 @@
         <result property="remark" column="remark"/>
         <result property="description" column="description"/>
         <result property="parentTaskId" column="parent_task_id"/>
+        <result property="milestoneId" column="milestone_id"/>
+        <result property="milestoneName" column="milestone_name"/>
         <result property="taskType" column="task_type"/>
     </resultMap>
 
@@ -110,6 +114,8 @@
                t.task_code,
                t.name,
                t.parent_task_id,
+               t.milestone_id,
+               m.name as milestone_name,
                t.task_type,
                t.status,
                t.priority,
@@ -127,6 +133,7 @@
                t.description
         from project_task t
                  left join sys_user u on u.id = t.assignee_id
+                 left join milestone m on m.id = t.milestone_id and m.is_deleted = 0
         where t.project_id = #{projectId}
           and t.is_deleted = 0
         <if test="query != null and query.assigneeId != null">
@@ -242,6 +249,40 @@
           and is_deleted = 0
     </select>
 
+    <select id="selectEntitiesByProjectId" resultMap="TaskEntityMap">
+        select id,
+               project_id,
+               parent_task_id,
+               wbs_id,
+               milestone_id,
+               task_code,
+               name,
+               description,
+               task_type,
+               priority,
+               status,
+               progress,
+               assignee_id,
+               planned_start_date,
+               planned_end_date,
+               actual_start_date,
+               actual_end_date,
+               planned_hours,
+               actual_hours,
+               planned_cost,
+               actual_cost,
+               sort_order,
+               remark,
+               created_by,
+               created_at,
+               updated_by,
+               updated_at,
+               is_deleted
+        from project_task
+        where project_id = #{projectId}
+          and is_deleted = 0
+    </select>
+
     <select id="selectCommentsByTaskId" resultMap="CommentVoMap">
         select c.id,
                c.project_id,
@@ -348,15 +389,27 @@
         update project_task
         set status = #{status},
             progress = #{progress},
+            assignee_id = #{assigneeId},
             remark = #{remark},
             actual_start_date = case
                 when #{actualStartDate} is not null and actual_start_date is null then #{actualStartDate}
                 else actual_start_date
             end,
             actual_end_date = case
-                when #{actualEndDate} is not null then #{actualEndDate}
-                else actual_end_date
+                when #{status} = 'DONE' then #{actualEndDate}
+                else null
             end,
+            updated_by = #{updatedBy},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{taskId}
+          and is_deleted = 0
+    </update>
+
+    <update id="updateDerivedProgress">
+        update project_task
+        set status = #{status},
+            progress = #{progress},
             updated_by = #{updatedBy},
             updated_at = #{updatedAt}
         where project_id = #{projectId}

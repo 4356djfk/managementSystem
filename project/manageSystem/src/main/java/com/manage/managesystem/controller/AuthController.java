@@ -4,6 +4,7 @@ import com.manage.managesystem.auth.AuthInterceptor;
 import com.manage.managesystem.common.response.ApiResponse;
 import com.manage.managesystem.dto.LoginDto;
 import com.manage.managesystem.dto.RegisterDto;
+import com.manage.managesystem.dto.UpdateCurrentUserProfileDto;
 import com.manage.managesystem.service.AuthService;
 import com.manage.managesystem.vo.LoginVO;
 import com.manage.managesystem.vo.UserProfileVO;
@@ -11,6 +12,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,5 +47,10 @@ public class AuthController {
     @GetMapping("/me")
     public ApiResponse<UserProfileVO> me() {
         return ApiResponse.success(authService.currentUser());
+    }
+
+    @PutMapping("/me")
+    public ApiResponse<UserProfileVO> updateMe(@Valid @RequestBody UpdateCurrentUserProfileDto dto) {
+        return ApiResponse.success(authService.updateCurrentUser(dto));
     }
 }

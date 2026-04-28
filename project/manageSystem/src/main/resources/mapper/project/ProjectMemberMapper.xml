@@ -41,6 +41,7 @@
         from project_member pm
                  inner join sys_user u on u.id = pm.user_id
         where pm.project_id = #{projectId}
+          and u.is_deleted = 0
         order by pm.created_at desc
     </select>
 
@@ -56,6 +57,7 @@
         from project_member pm
                  inner join sys_user u on u.id = pm.user_id
         where pm.id = #{id}
+          and u.is_deleted = 0
     </select>
 
     <select id="selectEntityById" resultMap="ProjectMemberEntityMap">
@@ -105,6 +107,14 @@
 
     <select id="countActiveMemberByProjectAndUser" resultType="int">
         select count(1)
+        from project_member
+        where project_id = #{projectId}
+          and user_id = #{userId}
+          and member_status = 'ACTIVE'
+    </select>
+
+    <select id="selectActiveRoleByProjectAndUser" resultType="string">
+        select project_role
         from project_member
         where project_id = #{projectId}
           and user_id = #{userId}

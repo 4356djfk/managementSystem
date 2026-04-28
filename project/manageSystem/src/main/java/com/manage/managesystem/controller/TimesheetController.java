@@ -39,13 +39,13 @@ public class TimesheetController {
     }
 
     @PutMapping("/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER, SystemRoleEnum.TEAM_MEMBER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<TimesheetVO> update(@PathVariable Long projectId, @PathVariable Long id, @Valid @RequestBody UpdateTimesheetDto dto) {
         return ApiResponse.success(timesheetService.update(projectId, id, dto));
     }
 
     @DeleteMapping("/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER, SystemRoleEnum.TEAM_MEMBER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> delete(@PathVariable Long projectId, @PathVariable Long id) {
         timesheetService.delete(projectId, id);
         return ApiResponse.success(null);

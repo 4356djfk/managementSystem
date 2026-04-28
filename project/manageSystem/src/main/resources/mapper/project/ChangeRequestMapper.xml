@@ -165,9 +165,9 @@
 
     <insert id="insertLog" parameterType="com.manage.managesystem.entity.ChangeRequestLogEntity">
         insert into change_request_log (
-            id, change_request_id, action, from_status, to_status, operator_id, comment, created_by, created_at, updated_by, updated_at
+            id, change_request_id, action, from_status, to_status, operator_id, comment, created_at
         ) values (
-            #{id}, #{changeRequestId}, #{action}, #{fromStatus}, #{toStatus}, #{operatorId}, #{comment}, #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt}
+            #{id}, #{changeRequestId}, #{action}, #{fromStatus}, #{toStatus}, #{operatorId}, #{comment}, #{createdAt}
         )
     </insert>
 

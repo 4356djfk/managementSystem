@@ -45,6 +45,7 @@
         <result property="title" column="title"/>
         <result property="startDate" column="start_date"/>
         <result property="endDate" column="end_date"/>
+        <result property="contentJson" column="content_json"/>
         <result property="status" column="status"/>
         <result property="attachmentId" column="attachment_id"/>
         <result property="attachmentUrl" column="attachment_url"/>
@@ -166,6 +167,7 @@
                r.title,
                r.start_date,
                r.end_date,
+               r.content_json,
                r.status,
                r.attachment_id,
                a.file_url as attachment_url,
@@ -186,6 +188,7 @@
                r.title,
                r.start_date,
                r.end_date,
+               r.content_json,
                r.status,
                r.attachment_id,
                a.file_url as attachment_url,
@@ -209,6 +212,14 @@
             #{attachmentId}, #{generatedBy}, #{generatedAt}, #{status}, #{deleted}
         )
     </insert>
+
+    <update id="softDeleteReport">
+        update report_record
+        set is_deleted = 1
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
 
     <select id="selectAttachmentById" resultMap="AttachmentVoMap">
         select id, file_name, file_url, file_size, file_type, biz_type, biz_id, uploaded_by, uploaded_at

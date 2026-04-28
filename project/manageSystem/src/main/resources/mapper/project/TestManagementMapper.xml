@@ -1,0 +1,486 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.manage.managesystem.mapper.TestManagementMapper">
+
+    <resultMap id="TestPlanEntityMap" type="com.manage.managesystem.entity.TestPlanEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="title" column="title"/>
+        <result property="versionNo" column="version_no"/>
+        <result property="scopeDesc" column="scope_desc"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="TestPlanVoMap" type="com.manage.managesystem.vo.TestPlanVO">
+        <id property="id" column="id"/>
+        <result property="title" column="title"/>
+        <result property="versionNo" column="version_no"/>
+        <result property="scopeDesc" column="scope_desc"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="ownerName" column="owner_name"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="TestCaseEntityMap" type="com.manage.managesystem.entity.TestCaseEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="testPlanId" column="test_plan_id"/>
+        <result property="requirementId" column="requirement_id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="caseCode" column="case_code"/>
+        <result property="title" column="title"/>
+        <result property="precondition" column="precondition"/>
+        <result property="steps" column="steps"/>
+        <result property="expectedResult" column="expected_result"/>
+        <result property="actualResult" column="actual_result"/>
+        <result property="executionStatus" column="execution_status"/>
+        <result property="testerId" column="tester_id"/>
+        <result property="executedAt" column="executed_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="TestCaseVoMap" type="com.manage.managesystem.vo.TestCaseVO">
+        <id property="id" column="id"/>
+        <result property="testPlanId" column="test_plan_id"/>
+        <result property="testPlanTitle" column="test_plan_title"/>
+        <result property="requirementId" column="requirement_id"/>
+        <result property="requirementTitle" column="requirement_title"/>
+        <result property="taskId" column="task_id"/>
+        <result property="taskName" column="task_name"/>
+        <result property="caseCode" column="case_code"/>
+        <result property="title" column="title"/>
+        <result property="precondition" column="precondition"/>
+        <result property="steps" column="steps"/>
+        <result property="expectedResult" column="expected_result"/>
+        <result property="actualResult" column="actual_result"/>
+        <result property="executionStatus" column="execution_status"/>
+        <result property="testerId" column="tester_id"/>
+        <result property="testerName" column="tester_name"/>
+        <result property="executedAt" column="executed_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="DefectEntityMap" type="com.manage.managesystem.entity.DefectEntity">
+        <id property="id" column="id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="testCaseId" column="test_case_id"/>
+        <result property="requirementId" column="requirement_id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="defectCode" column="defect_code"/>
+        <result property="title" column="title"/>
+        <result property="severity" column="severity"/>
+        <result property="priority" column="priority"/>
+        <result property="status" column="status"/>
+        <result property="reporterId" column="reporter_id"/>
+        <result property="assigneeId" column="assignee_id"/>
+        <result property="description" column="description"/>
+        <result property="resolution" column="resolution"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="deleted" column="is_deleted"/>
+    </resultMap>
+
+    <resultMap id="DefectVoMap" type="com.manage.managesystem.vo.DefectVO">
+        <id property="id" column="id"/>
+        <result property="testCaseId" column="test_case_id"/>
+        <result property="testCaseTitle" column="test_case_title"/>
+        <result property="requirementId" column="requirement_id"/>
+        <result property="requirementTitle" column="requirement_title"/>
+        <result property="taskId" column="task_id"/>
+        <result property="taskName" column="task_name"/>
+        <result property="defectCode" column="defect_code"/>
+        <result property="title" column="title"/>
+        <result property="severity" column="severity"/>
+        <result property="priority" column="priority"/>
+        <result property="status" column="status"/>
+        <result property="reporterId" column="reporter_id"/>
+        <result property="reporterName" column="reporter_name"/>
+        <result property="assigneeId" column="assignee_id"/>
+        <result property="assigneeName" column="assignee_name"/>
+        <result property="description" column="description"/>
+        <result property="resolution" column="resolution"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectPlansByProjectId" resultMap="TestPlanVoMap">
+        select tp.id,
+               tp.title,
+               tp.version_no,
+               tp.scope_desc,
+               tp.owner_id,
+               u.real_name as owner_name,
+               tp.status,
+               tp.created_at,
+               tp.updated_at
+        from test_plan tp
+                 left join sys_user u on u.id = tp.owner_id
+        where tp.project_id = #{projectId}
+          and tp.is_deleted = 0
+        <if test="query != null and query.status != null and query.status != ''">
+            and tp.status = #{query.status}
+        </if>
+        <if test="query != null and query.ownerId != null">
+            and tp.owner_id = #{query.ownerId}
+        </if>
+        order by tp.updated_at desc, tp.created_at desc
+    </select>
+
+    <select id="selectPlanById" resultMap="TestPlanVoMap">
+        select tp.id,
+               tp.title,
+               tp.version_no,
+               tp.scope_desc,
+               tp.owner_id,
+               u.real_name as owner_name,
+               tp.status,
+               tp.created_at,
+               tp.updated_at
+        from test_plan tp
+                 left join sys_user u on u.id = tp.owner_id
+        where tp.project_id = #{projectId}
+          and tp.id = #{id}
+          and tp.is_deleted = 0
+    </select>
+
+    <select id="selectPlanEntityById" resultMap="TestPlanEntityMap">
+        select id,
+               project_id,
+               title,
+               version_no,
+               scope_desc,
+               owner_id,
+               status,
+               created_at,
+               updated_at,
+               is_deleted
+        from test_plan
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertPlan" parameterType="com.manage.managesystem.entity.TestPlanEntity">
+        insert into test_plan (
+            id, project_id, title, version_no, scope_desc, owner_id, status, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{title}, #{versionNo}, #{scopeDesc}, #{ownerId}, #{status}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updatePlan" parameterType="com.manage.managesystem.entity.TestPlanEntity">
+        update test_plan
+        set title = #{title},
+            version_no = #{versionNo},
+            scope_desc = #{scopeDesc},
+            owner_id = #{ownerId},
+            status = #{status},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeletePlan">
+        update test_plan
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="countCasesByPlanId" resultType="int">
+        select count(1)
+        from test_case
+        where project_id = #{projectId}
+          and test_plan_id = #{testPlanId}
+          and is_deleted = 0
+    </select>
+
+    <select id="selectCasesByProjectId" resultMap="TestCaseVoMap">
+        select tc.id,
+               tc.test_plan_id,
+               tp.title as test_plan_title,
+               tc.requirement_id,
+               r.title as requirement_title,
+               tc.task_id,
+               t.name as task_name,
+               tc.case_code,
+               tc.title,
+               tc.precondition,
+               tc.steps,
+               tc.expected_result,
+               tc.actual_result,
+               tc.execution_status,
+               tc.tester_id,
+               u.real_name as tester_name,
+               tc.executed_at,
+               tc.created_at,
+               tc.updated_at
+        from test_case tc
+                 left join test_plan tp on tp.id = tc.test_plan_id and tp.is_deleted = 0
+                 left join requirement_info r on r.id = tc.requirement_id and r.is_deleted = 0
+                 left join project_task t on t.id = tc.task_id and t.is_deleted = 0
+                 left join sys_user u on u.id = tc.tester_id
+        where tc.project_id = #{projectId}
+          and tc.is_deleted = 0
+        <if test="query != null and query.testPlanId != null">
+            and tc.test_plan_id = #{query.testPlanId}
+        </if>
+        <if test="query != null and query.executionStatus != null and query.executionStatus != ''">
+            and tc.execution_status = #{query.executionStatus}
+        </if>
+        <if test="query != null and query.testerId != null">
+            and tc.tester_id = #{query.testerId}
+        </if>
+        order by tc.updated_at desc, tc.created_at desc
+    </select>
+
+    <select id="selectCaseById" resultMap="TestCaseVoMap">
+        select tc.id,
+               tc.test_plan_id,
+               tp.title as test_plan_title,
+               tc.requirement_id,
+               r.title as requirement_title,
+               tc.task_id,
+               t.name as task_name,
+               tc.case_code,
+               tc.title,
+               tc.precondition,
+               tc.steps,
+               tc.expected_result,
+               tc.actual_result,
+               tc.execution_status,
+               tc.tester_id,
+               u.real_name as tester_name,
+               tc.executed_at,
+               tc.created_at,
+               tc.updated_at
+        from test_case tc
+                 left join test_plan tp on tp.id = tc.test_plan_id and tp.is_deleted = 0
+                 left join requirement_info r on r.id = tc.requirement_id and r.is_deleted = 0
+                 left join project_task t on t.id = tc.task_id and t.is_deleted = 0
+                 left join sys_user u on u.id = tc.tester_id
+        where tc.project_id = #{projectId}
+          and tc.id = #{id}
+          and tc.is_deleted = 0
+    </select>
+
+    <select id="selectCaseEntityById" resultMap="TestCaseEntityMap">
+        select id,
+               project_id,
+               test_plan_id,
+               requirement_id,
+               task_id,
+               case_code,
+               title,
+               precondition,
+               steps,
+               expected_result,
+               actual_result,
+               execution_status,
+               tester_id,
+               executed_at,
+               created_at,
+               updated_at,
+               is_deleted
+        from test_case
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertCase" parameterType="com.manage.managesystem.entity.TestCaseEntity">
+        insert into test_case (
+            id, project_id, test_plan_id, requirement_id, task_id, case_code, title, precondition,
+            steps, expected_result, actual_result, execution_status, tester_id, executed_at, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{testPlanId}, #{requirementId}, #{taskId}, #{caseCode}, #{title}, #{precondition},
+            #{steps}, #{expectedResult}, #{actualResult}, #{executionStatus}, #{testerId}, #{executedAt}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updateCase" parameterType="com.manage.managesystem.entity.TestCaseEntity">
+        update test_case
+        set test_plan_id = #{testPlanId},
+            requirement_id = #{requirementId},
+            task_id = #{taskId},
+            title = #{title},
+            precondition = #{precondition},
+            steps = #{steps},
+            expected_result = #{expectedResult},
+            actual_result = #{actualResult},
+            execution_status = #{executionStatus},
+            tester_id = #{testerId},
+            executed_at = #{executedAt},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeleteCase">
+        update test_case
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <select id="countDefectsByCaseId" resultType="int">
+        select count(1)
+        from defect_record
+        where project_id = #{projectId}
+          and test_case_id = #{testCaseId}
+          and is_deleted = 0
+    </select>
+
+    <select id="selectDefectsByProjectId" resultMap="DefectVoMap">
+        select d.id,
+               d.test_case_id,
+               tc.title as test_case_title,
+               d.requirement_id,
+               r.title as requirement_title,
+               d.task_id,
+               t.name as task_name,
+               d.defect_code,
+               d.title,
+               d.severity,
+               d.priority,
+               d.status,
+               d.reporter_id,
+               reporter.real_name as reporter_name,
+               d.assignee_id,
+               assignee.real_name as assignee_name,
+               d.description,
+               d.resolution,
+               d.created_at,
+               d.updated_at
+        from defect_record d
+                 left join test_case tc on tc.id = d.test_case_id and tc.is_deleted = 0
+                 left join requirement_info r on r.id = d.requirement_id and r.is_deleted = 0
+                 left join project_task t on t.id = d.task_id and t.is_deleted = 0
+                 left join sys_user reporter on reporter.id = d.reporter_id
+                 left join sys_user assignee on assignee.id = d.assignee_id
+        where d.project_id = #{projectId}
+          and d.is_deleted = 0
+        <if test="query != null and query.status != null and query.status != ''">
+            and d.status = #{query.status}
+        </if>
+        <if test="query != null and query.severity != null and query.severity != ''">
+            and d.severity = #{query.severity}
+        </if>
+        <if test="query != null and query.assigneeId != null">
+            and d.assignee_id = #{query.assigneeId}
+        </if>
+        order by d.updated_at desc, d.created_at desc
+    </select>
+
+    <select id="selectDefectById" resultMap="DefectVoMap">
+        select d.id,
+               d.test_case_id,
+               tc.title as test_case_title,
+               d.requirement_id,
+               r.title as requirement_title,
+               d.task_id,
+               t.name as task_name,
+               d.defect_code,
+               d.title,
+               d.severity,
+               d.priority,
+               d.status,
+               d.reporter_id,
+               reporter.real_name as reporter_name,
+               d.assignee_id,
+               assignee.real_name as assignee_name,
+               d.description,
+               d.resolution,
+               d.created_at,
+               d.updated_at
+        from defect_record d
+                 left join test_case tc on tc.id = d.test_case_id and tc.is_deleted = 0
+                 left join requirement_info r on r.id = d.requirement_id and r.is_deleted = 0
+                 left join project_task t on t.id = d.task_id and t.is_deleted = 0
+                 left join sys_user reporter on reporter.id = d.reporter_id
+                 left join sys_user assignee on assignee.id = d.assignee_id
+        where d.project_id = #{projectId}
+          and d.id = #{id}
+          and d.is_deleted = 0
+    </select>
+
+    <select id="selectDefectEntityById" resultMap="DefectEntityMap">
+        select id,
+               project_id,
+               test_case_id,
+               requirement_id,
+               task_id,
+               defect_code,
+               title,
+               severity,
+               priority,
+               status,
+               reporter_id,
+               assignee_id,
+               description,
+               resolution,
+               created_at,
+               updated_at,
+               is_deleted
+        from defect_record
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </select>
+
+    <insert id="insertDefect" parameterType="com.manage.managesystem.entity.DefectEntity">
+        insert into defect_record (
+            id, project_id, test_case_id, requirement_id, task_id, defect_code, title, severity,
+            priority, status, reporter_id, assignee_id, description, resolution, created_at, updated_at, is_deleted
+        ) values (
+            #{id}, #{projectId}, #{testCaseId}, #{requirementId}, #{taskId}, #{defectCode}, #{title}, #{severity},
+            #{priority}, #{status}, #{reporterId}, #{assigneeId}, #{description}, #{resolution}, #{createdAt}, #{updatedAt}, #{deleted}
+        )
+    </insert>
+
+    <update id="updateDefect" parameterType="com.manage.managesystem.entity.DefectEntity">
+        update defect_record
+        set test_case_id = #{testCaseId},
+            requirement_id = #{requirementId},
+            task_id = #{taskId},
+            title = #{title},
+            severity = #{severity},
+            priority = #{priority},
+            status = #{status},
+            reporter_id = #{reporterId},
+            assignee_id = #{assigneeId},
+            description = #{description},
+            resolution = #{resolution},
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+    <update id="softDeleteDefect">
+        update defect_record
+        set is_deleted = 1,
+            updated_at = #{updatedAt}
+        where project_id = #{projectId}
+          and id = #{id}
+          and is_deleted = 0
+    </update>
+
+</mapper>

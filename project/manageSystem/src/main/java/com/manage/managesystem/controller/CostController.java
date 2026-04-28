@@ -37,26 +37,26 @@ public class CostController {
     }
 
     @PostMapping("/projects/{projectId}/cost-plans")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<CostPlanVO> createPlan(@PathVariable Long projectId, @Valid @RequestBody CreateCostPlanDto dto) {
         return ApiResponse.success(costService.createPlan(projectId, dto));
     }
 
     @PutMapping("/projects/{projectId}/cost-plans/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<CostPlanVO> updatePlan(@PathVariable Long projectId, @PathVariable Long id, @Valid @RequestBody UpdateCostPlanDto dto) {
         return ApiResponse.success(costService.updatePlan(projectId, id, dto));
     }
 
     @DeleteMapping("/projects/{projectId}/cost-plans/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> deletePlan(@PathVariable Long projectId, @PathVariable Long id) {
         costService.deletePlan(projectId, id);
         return ApiResponse.success(null);
     }
 
     @PostMapping("/projects/{projectId}/cost-baselines")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<CostBaselineVO> createBaseline(@PathVariable Long projectId, @Valid @RequestBody CreateCostBaselineDto dto) {
         return ApiResponse.success(costService.createBaseline(projectId, dto));
     }
@@ -72,20 +72,20 @@ public class CostController {
     }
 
     @PostMapping("/projects/{projectId}/cost-actuals")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<CostActualVO> createActual(@PathVariable Long projectId, @Valid @RequestBody CreateCostActualDto dto) {
         return ApiResponse.success(costService.createActual(projectId, dto));
     }
 
     @DeleteMapping("/projects/{projectId}/cost-actuals/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> deleteActual(@PathVariable Long projectId, @PathVariable Long id) {
         costService.deleteActual(projectId, id);
         return ApiResponse.success(null);
     }
 
     @DeleteMapping("/projects/{projectId}/cost-baselines/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> deleteBaseline(@PathVariable Long projectId, @PathVariable Long id) {
         costService.deleteBaseline(projectId, id);
         return ApiResponse.success(null);

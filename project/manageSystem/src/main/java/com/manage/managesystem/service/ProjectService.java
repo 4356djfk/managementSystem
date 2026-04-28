@@ -27,21 +27,36 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class ProjectService {
     private final ProjectMapper projectMapper;
     private final ProjectTemplateMapper projectTemplateMapper;
     private final UserMapper userMapper;
+    private final ProjectPermissionService projectPermissionService;
 
-    public ProjectService(ProjectMapper projectMapper, ProjectTemplateMapper projectTemplateMapper, UserMapper userMapper) {
+    public ProjectService(ProjectMapper projectMapper,
+                          ProjectTemplateMapper projectTemplateMapper,
+                          UserMapper userMapper,
+                          ProjectPermissionService projectPermissionService) {
         this.projectMapper = projectMapper;
         this.projectTemplateMapper = projectTemplateMapper;
         this.userMapper = userMapper;
+        this.projectPermissionService = projectPermissionService;
     }
 
     public PageResult<ProjectListItemVO> list(ProjectQueryDto queryDto) {
         List<ProjectListItemVO> list = projectMapper.selectList(queryDto);
+        Long currentUserId = projectPermissionService.requireCurrentUserId();
+        if (!projectPermissionService.hasCurrentUserBusinessRole()) {
+            list = List.of();
+        } else {
+            list = list.stream()
+                    .filter(item -> Objects.equals(item.getOwnerId(), currentUserId)
+                            || projectPermissionService.isActiveParticipant(item.getId(), currentUserId))
+                    .toList();
+        }
         PageResult<ProjectListItemVO> pageResult = new PageResult<>();
         pageResult.setList(list);
         pageResult.setPage(queryDto.getPage() == null ? 1 : queryDto.getPage());
@@ -51,7 +66,7 @@ public class ProjectService {
     }
 
     public ProjectDetailVO detail(Long projectId) {
-        ensureProjectExists(projectId);
+        projectPermissionService.ensureProjectParticipant(projectId);
         ProjectDetailVO detail = projectMapper.selectDetailById(projectId);
         if (detail == null) {
             throw new IllegalArgumentException("项目不存在");
@@ -61,15 +76,16 @@ public class ProjectService {
 
     @Transactional
     public ProjectDetailVO create(CreateProjectDto dto) {
+        projectPermissionService.ensureCurrentUserHasBusinessRole();
+        Long ownerId = projectPermissionService.requireCurrentUserId();
         validateTemplate(dto.getTemplateId());
-        validateOwner(dto.getOwnerId());
         return createProject(
                 dto.getName(),
                 dto.getDescription(),
                 dto.getStartDate(),
                 dto.getEndDate(),
                 dto.getLifeCycleModel(),
-                dto.getOwnerId(),
+                ownerId,
                 dto.getTemplateId(),
                 dto.getPlannedBudget(),
                 0
@@ -78,6 +94,7 @@ public class ProjectService {
 
     @Transactional
     public ProjectDetailVO update(Long projectId, UpdateProjectDto dto) {
+        projectPermissionService.ensureProjectOwner(projectId);
         ProjectEntity entity = ensureProjectExists(projectId);
         validateOwner(dto.getOwnerId());
         entity.setName(dto.getName());
@@ -95,6 +112,7 @@ public class ProjectService {
 
     @Transactional
     public void changeStatus(Long projectId, ChangeProjectStatusDto dto) {
+        projectPermissionService.ensureProjectOwner(projectId);
         ProjectEntity entity = ensureProjectExists(projectId);
         ProjectStatusEnum currentStatus = parseProjectStatus(entity.getStatus());
         ProjectStatusEnum targetStatus = parseProjectStatus(dto.getStatus());
@@ -132,17 +150,19 @@ public class ProjectService {
 
     @Transactional
     public void delete(Long projectId) {
+        projectPermissionService.ensureProjectOwner(projectId);
         ensureProjectExists(projectId);
         projectMapper.softDelete(projectId, UserContextHolder.getUserId(), LocalDateTime.now());
     }
 
     public ProjectCharterVO getCharter(Long projectId) {
-        ensureProjectExists(projectId);
+        projectPermissionService.ensureProjectParticipant(projectId);
         return projectMapper.selectCharterByProjectId(projectId);
     }
 
     @Transactional
     public ProjectCharterVO saveCharter(Long projectId, SaveProjectCharterDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureProjectExists(projectId);
         ProjectCharterVO existing = projectMapper.selectCharterByProjectId(projectId);
         LocalDateTime now = LocalDateTime.now();
@@ -163,7 +183,7 @@ public class ProjectService {
     }
 
     public ProjectDashboardVO dashboard(Long projectId) {
-        ensureProjectExists(projectId);
+        projectPermissionService.ensureProjectParticipant(projectId);
         ProjectDashboardVO dashboard = projectMapper.selectDashboard(projectId);
         if (dashboard == null) {
             dashboard = new ProjectDashboardVO();
@@ -174,15 +194,16 @@ public class ProjectService {
 
     @Transactional
     public ProjectDetailVO createFromTemplate(CreateProjectFromTemplateDto dto) {
+        projectPermissionService.ensureCurrentUserHasBusinessRole();
+        Long ownerId = projectPermissionService.requireCurrentUserId();
         var template = validateTemplate(dto.getTemplateId());
-        validateOwner(dto.getOwnerId());
         return createProject(
                 dto.getName(),
                 dto.getDescription(),
                 dto.getStartDate(),
                 dto.getEndDate(),
                 template.getType(),
-                dto.getOwnerId(),
+                ownerId,
                 dto.getTemplateId(),
                 dto.getPlannedBudget(),
                 0
@@ -191,6 +212,8 @@ public class ProjectService {
 
     @Transactional
     public ProjectDetailVO initDemo() {
+        projectPermissionService.ensureCurrentUserHasBusinessRole();
+        Long ownerId = projectPermissionService.requireCurrentUserId();
         var template = projectTemplateMapper.selectFirstEnabled();
         Long templateId = template == null ? null : template.getId();
         String lifeCycleModel = template == null ? "AGILE" : template.getType();
@@ -200,7 +223,7 @@ public class ProjectService {
                 null,
                 null,
                 lifeCycleModel,
-                UserContextHolder.getUserId(),
+                ownerId,
                 templateId,
                 BigDecimal.ZERO,
                 1
@@ -228,7 +251,7 @@ public class ProjectService {
         entity.setStatus(ProjectStatusEnum.PLANNING.name());
         entity.setStartDate(startDate);
         entity.setEndDate(endDate);
-        entity.setOwnerId(ownerId == null ? UserContextHolder.getUserId() : ownerId);
+        entity.setOwnerId(ownerId);
         entity.setTemplateId(templateId);
         entity.setProgressRate(BigDecimal.ZERO);
         entity.setPlannedBudget(plannedBudget == null ? BigDecimal.ZERO : plannedBudget);
@@ -287,6 +310,7 @@ public class ProjectService {
         if (userMapper.selectById(ownerId) == null) {
             throw new IllegalArgumentException("项目负责人不存在: " + ownerId);
         }
+        projectPermissionService.ensureBusinessUser(ownerId, "project owner must have USER role");
     }
 
     private ProjectStatusEnum parseProjectStatus(String status) {

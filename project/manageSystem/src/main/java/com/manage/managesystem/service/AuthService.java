@@ -8,6 +8,7 @@ import com.manage.managesystem.auth.TokenSession;
 import com.manage.managesystem.auth.UserContextHolder;
 import com.manage.managesystem.dto.LoginDto;
 import com.manage.managesystem.dto.RegisterDto;
+import com.manage.managesystem.dto.UpdateCurrentUserProfileDto;
 import com.manage.managesystem.entity.RoleEntity;
 import com.manage.managesystem.entity.UserEntity;
 import com.manage.managesystem.entity.UserRoleEntity;
@@ -16,6 +17,7 @@ import com.manage.managesystem.enums.UserStatusEnum;
 import com.manage.managesystem.mapper.RoleMapper;
 import com.manage.managesystem.mapper.UserMapper;
 import com.manage.managesystem.mapper.UserRoleMapper;
+import com.manage.managesystem.util.RoleCodeUtils;
 import com.manage.managesystem.vo.LoginVO;
 import com.manage.managesystem.vo.UserProfileVO;
 import org.springframework.stereotype.Service;
@@ -42,11 +44,11 @@ public class AuthService {
     public UserProfileVO register(RegisterDto dto) {
         UserEntity exists = userMapper.selectByUsername(dto.getUsername());
         if (exists != null) {
-            throw new IllegalArgumentException("用户名已存在");
+            throw new IllegalArgumentException("username already exists");
         }
-        RoleEntity defaultRole = roleMapper.selectByRoleCode(SystemRoleEnum.TEAM_MEMBER.name());
+        RoleEntity defaultRole = roleMapper.selectByRoleCode(SystemRoleEnum.USER.name());
         if (defaultRole == null) {
-            throw new IllegalArgumentException("默认角色不存在，请先初始化角色数据");
+            throw new IllegalArgumentException("default role not found");
         }
         LocalDateTime now = LocalDateTime.now();
         UserEntity user = new UserEntity();
@@ -75,15 +77,15 @@ public class AuthService {
     public LoginVO login(LoginDto dto) {
         UserEntity user = userMapper.selectByUsername(dto.getUsername());
         if (user == null || user.getDeleted() != null && user.getDeleted() == 1) {
-            throw new IllegalArgumentException("账号不存在");
+            throw new IllegalArgumentException("account not found");
         }
         if (!UserStatusEnum.ACTIVE.name().equals(user.getStatus())) {
-            throw new IllegalArgumentException("账号已停用");
+            throw new IllegalArgumentException("account disabled");
         }
         if (!PasswordUtils.matches(dto.getPassword(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("密码错误");
+            throw new IllegalArgumentException("invalid password");
         }
-        List<String> roleCodes = userRoleMapper.selectRoleCodesByUserId(user.getId());
+        List<String> roleCodes = RoleCodeUtils.normalizeSystemRoles(userRoleMapper.selectRoleCodesByUserId(user.getId()));
         TokenSession session = tokenService.createSession(TokenSession.builder()
                 .userId(user.getId())
                 .username(user.getUsername())
@@ -110,17 +112,82 @@ public class AuthService {
     public UserProfileVO currentUser() {
         AuthUser authUser = UserContextHolder.get();
         if (authUser == null) {
-            throw new IllegalArgumentException("当前用户未登录");
+            throw new IllegalArgumentException("current user not authenticated");
         }
         UserEntity user = userMapper.selectById(authUser.getUserId());
         if (user == null) {
-            throw new IllegalArgumentException("当前用户不存在");
+            throw new IllegalArgumentException("current user not found");
         }
-        List<String> roleCodes = userRoleMapper.selectRoleCodesByUserId(user.getId());
+        List<String> roleCodes = RoleCodeUtils.normalizeSystemRoles(userRoleMapper.selectRoleCodesByUserId(user.getId()));
         return buildUserProfile(user, roleCodes);
     }
 
+    @Transactional
+    public UserProfileVO updateCurrentUser(UpdateCurrentUserProfileDto dto) {
+        AuthUser authUser = UserContextHolder.get();
+        if (authUser == null || authUser.getUserId() == null) {
+            throw new IllegalArgumentException("current user not authenticated");
+        }
+
+        UserEntity user = userMapper.selectById(authUser.getUserId());
+        if (user == null) {
+            throw new IllegalArgumentException("current user not found");
+        }
+
+        String nextUsername = dto.getUsername() == null ? "" : dto.getUsername().trim();
+        String nextRealName = dto.getRealName() == null ? "" : dto.getRealName().trim();
+        if (nextUsername.isEmpty()) {
+            throw new IllegalArgumentException("username cannot be empty");
+        }
+        if (nextRealName.isEmpty()) {
+            throw new IllegalArgumentException("real name cannot be empty");
+        }
+
+        UserEntity existingUser = userMapper.selectByUsername(nextUsername);
+        if (existingUser != null && !existingUser.getId().equals(user.getId())) {
+            throw new IllegalArgumentException("username already exists");
+        }
+
+        user.setUsername(nextUsername);
+        user.setRealName(nextRealName);
+        user.setEmail(normalizeOptionalValue(dto.getEmail()));
+        user.setPhone(normalizeOptionalValue(dto.getPhone()));
+        user.setUpdatedBy(user.getId());
+        user.setUpdatedAt(LocalDateTime.now());
+        userMapper.update(user);
+
+        List<String> roleCodes = RoleCodeUtils.normalizeSystemRoles(userRoleMapper.selectRoleCodesByUserId(user.getId()));
+        refreshCurrentSession(authUser, user, roleCodes);
+        return buildUserProfile(user, roleCodes);
+    }
+
+    private void refreshCurrentSession(AuthUser authUser, UserEntity user, List<String> roleCodes) {
+        if (authUser.getToken() == null || authUser.getExpiresAt() == null) {
+            return;
+        }
+        tokenService.refreshSession(TokenSession.builder()
+                .token(authUser.getToken())
+                .userId(user.getId())
+                .username(user.getUsername())
+                .realName(user.getRealName())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .avatarUrl(user.getAvatarUrl())
+                .status(user.getStatus())
+                .roleCodes(roleCodes)
+                .expiresAt(authUser.getExpiresAt())
+                .build());
+    }
+
+    private String normalizeOptionalValue(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim();
+    }
+
     private UserProfileVO buildUserProfile(UserEntity user, List<String> roleCodes) {
+        List<String> normalizedRoleCodes = RoleCodeUtils.normalizeSystemRoles(roleCodes);
         UserProfileVO vo = new UserProfileVO();
         vo.setId(user.getId());
         vo.setUsername(user.getUsername());
@@ -129,7 +196,7 @@ public class AuthService {
         vo.setPhone(user.getPhone());
         vo.setAvatarUrl(user.getAvatarUrl());
         vo.setStatus(user.getStatus());
-        vo.setRoles(roleCodes);
+        vo.setRoles(normalizedRoleCodes);
         return vo;
     }
 }

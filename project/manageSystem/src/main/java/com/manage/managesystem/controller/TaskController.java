@@ -46,7 +46,7 @@ public class TaskController {
     }
 
     @PostMapping("/projects/{projectId}/tasks")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<TaskDetailVO> create(@PathVariable Long projectId, @Valid @RequestBody CreateTaskDto dto) {
         return ApiResponse.success(taskCommandService.create(projectId, dto));
     }
@@ -57,20 +57,20 @@ public class TaskController {
     }
 
     @PutMapping("/projects/{projectId}/tasks/{taskId}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<TaskDetailVO> update(@PathVariable Long projectId, @PathVariable Long taskId, @Valid @RequestBody UpdateTaskDto dto) {
         return ApiResponse.success(taskCommandService.update(projectId, taskId, dto));
     }
 
     @DeleteMapping("/projects/{projectId}/tasks/{taskId}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> delete(@PathVariable Long projectId, @PathVariable Long taskId) {
         taskCommandService.delete(projectId, taskId);
         return ApiResponse.success(null);
     }
 
     @PatchMapping("/projects/{projectId}/tasks/{taskId}/progress")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER, SystemRoleEnum.TEAM_MEMBER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<TaskDetailVO> updateProgress(@PathVariable Long projectId, @PathVariable Long taskId, @Valid @RequestBody UpdateTaskProgressDto dto) {
         return ApiResponse.success(taskCommandService.updateProgress(projectId, taskId, dto));
     }
@@ -81,26 +81,31 @@ public class TaskController {
     }
 
     @PostMapping("/projects/{projectId}/task-dependencies")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<TaskDependencyVO> createDependency(@PathVariable Long projectId, @Valid @RequestBody CreateTaskDependencyDto dto) {
         return ApiResponse.success(taskCommandService.createDependency(projectId, dto));
     }
 
     @DeleteMapping("/projects/{projectId}/task-dependencies/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> deleteDependency(@PathVariable Long projectId, @PathVariable Long id) {
         taskCommandService.deleteDependency(projectId, id);
         return ApiResponse.success(null);
     }
 
     @PostMapping("/projects/{projectId}/tasks/{taskId}/comments")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER, SystemRoleEnum.TEAM_MEMBER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<CommentVO> createComment(@PathVariable Long projectId, @PathVariable Long taskId, @Valid @RequestBody CreateTaskCommentDto dto) {
         return ApiResponse.success(taskCommandService.createComment(projectId, taskId, dto));
     }
 
+    @GetMapping("/projects/{projectId}/tasks/{taskId}/comments")
+    public ApiResponse<List<CommentVO>> listComments(@PathVariable Long projectId, @PathVariable Long taskId) {
+        return ApiResponse.success(taskQueryService.listComments(projectId, taskId));
+    }
+
     @DeleteMapping("/projects/{projectId}/tasks/{taskId}/comments/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER, SystemRoleEnum.TEAM_MEMBER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> deleteComment(@PathVariable Long projectId, @PathVariable Long taskId, @PathVariable Long id) {
         taskCommandService.deleteComment(projectId, taskId, id);
         return ApiResponse.success(null);

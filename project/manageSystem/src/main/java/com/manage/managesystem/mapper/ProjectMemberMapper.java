@@ -23,4 +23,7 @@ public interface ProjectMemberMapper {
 
     int countActiveMemberByProjectAndUser(@Param("projectId") Long projectId,
                                           @Param("userId") Long userId);
+
+    String selectActiveRoleByProjectAndUser(@Param("projectId") Long projectId,
+                                            @Param("userId") Long userId);
 }

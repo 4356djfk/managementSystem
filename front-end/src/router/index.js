@@ -35,6 +35,56 @@ const routes = [
         name: 'dashboard',
         component: () => import('@/views/dashboard/DashboardView.vue'),
       },
+      {
+        path: 'templates',
+        name: 'project-templates',
+        component: () => import('@/views/templates/TemplatesView.vue'),
+        meta: {
+          allowedRoles: ['SYS_ADMIN'],
+        },
+      },
+      {
+        path: 'users',
+        name: 'users',
+        component: () => import('@/views/users/UsersView.vue'),
+        meta: {
+          allowedRoles: ['SYS_ADMIN'],
+        },
+      },
+      {
+        path: 'calendar',
+        name: 'my-calendar',
+        component: () => import('@/views/calendar/MyCalendarView.vue'),
+        meta: {
+          allowedRoles: ['USER'],
+        },
+      },
+      {
+        path: 'search',
+        name: 'global-search',
+        component: () => import('@/views/search/SearchView.vue'),
+        meta: {
+          allowedRoles: ['USER'],
+        },
+      },
+      {
+        path: 'audit',
+        name: 'audit-logs',
+        component: () => import('@/views/audit/AuditLogsView.vue'),
+        meta: {
+          allowedRoles: ['SYS_ADMIN'],
+        },
+      },
+      {
+        path: 'notifications',
+        name: 'notifications',
+        component: () => import('@/views/notifications/NotificationsView.vue'),
+      },
+      {
+        path: 'profile',
+        name: 'profile',
+        component: () => import('@/views/profile/ProfileView.vue'),
+      },
     ],
   },
   {
@@ -43,6 +93,7 @@ const routes = [
     component: () => import('@/views/editor/ProjectEditorView.vue'),
     meta: {
       requiresAuth: true,
+      allowedRoles: ['USER'],
     },
   },
   {
@@ -73,6 +124,19 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.guestOnly && authStore.isAuthenticated) {
+    return {
+      name: 'dashboard',
+    }
+  }
+
+  const currentRoleCodes = Array.isArray(authStore.user?.roleCodes || authStore.user?.roles)
+    ? (authStore.user?.roleCodes || authStore.user?.roles)
+    : []
+  const allowedRoles = to.matched.flatMap((record) => (
+    Array.isArray(record.meta?.allowedRoles) ? record.meta.allowedRoles : []
+  ))
+
+  if (allowedRoles.length && !allowedRoles.some((role) => currentRoleCodes.includes(role))) {
     return {
       name: 'dashboard',
     }

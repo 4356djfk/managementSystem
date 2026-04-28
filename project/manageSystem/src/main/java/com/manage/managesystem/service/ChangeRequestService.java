@@ -21,12 +21,19 @@ import java.util.List;
 @Service
 public class ChangeRequestService {
     private final ChangeRequestMapper changeRequestMapper;
+    private final ProjectPermissionService projectPermissionService;
+    private final NotificationService notificationService;
 
-    public ChangeRequestService(ChangeRequestMapper changeRequestMapper) {
+    public ChangeRequestService(ChangeRequestMapper changeRequestMapper,
+                                ProjectPermissionService projectPermissionService,
+                                NotificationService notificationService) {
         this.changeRequestMapper = changeRequestMapper;
+        this.projectPermissionService = projectPermissionService;
+        this.notificationService = notificationService;
     }
 
     public PageResult<ChangeRequestVO> list(Long projectId, ChangeRequestQueryDto queryDto) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         List<ChangeRequestVO> list = changeRequestMapper.selectByProjectId(projectId, queryDto);
         PageResult<ChangeRequestVO> pageResult = new PageResult<>();
         pageResult.setList(list);
@@ -38,6 +45,10 @@ public class ChangeRequestService {
 
     @Transactional
     public ChangeRequestVO create(Long projectId, CreateChangeRequestDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
+        if (projectPermissionService.isProjectOwner(projectId)) {
+            throw new IllegalArgumentException("project owner cannot submit change requests");
+        }
         LocalDateTime now = LocalDateTime.now();
         ChangeRequestEntity entity = new ChangeRequestEntity();
         entity.setId(IdWorker.getId());
@@ -62,13 +73,19 @@ public class ChangeRequestService {
     }
 
     public ChangeRequestVO detail(Long projectId, Long id) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         ChangeRequestEntity entity = ensureRequest(projectId, id);
         return changeRequestMapper.selectById(entity.getId());
     }
 
     @Transactional
     public ChangeRequestVO approve(Long projectId, Long id, ApproveChangeRequestDto dto) {
+        projectPermissionService.ensureProjectOwner(projectId);
         ChangeRequestEntity entity = ensureRequest(projectId, id);
+        Long currentUserId = projectPermissionService.requireCurrentUserId();
+        if (currentUserId.equals(entity.getProposerId())) {
+            throw new IllegalArgumentException("applicant cannot approve own change request");
+        }
         if (!(ChangeStatusEnum.SUBMITTED.name().equals(entity.getStatus())
                 || ChangeStatusEnum.UNDER_REVIEW.name().equals(entity.getStatus()))) {
             throw new IllegalArgumentException("current status does not allow approval");
@@ -78,17 +95,26 @@ public class ChangeRequestService {
         changeRequestMapper.updateApproval(
                 id,
                 nextStatus,
-                UserContextHolder.getUserId(),
+                currentUserId,
                 dto.getComment(),
                 now,
-                UserContextHolder.getUserId(),
+                currentUserId,
                 now
         );
         insertLog(id, "APPROVE", entity.getStatus(), nextStatus, dto.getComment());
+        notificationService.notifyChangeRequestApprovalResult(
+                entity.getProposerId(),
+                projectId,
+                id,
+                entity.getTitle(),
+                nextStatus,
+                dto.getComment()
+        );
         return changeRequestMapper.selectById(id);
     }
 
     public List<ChangeRequestLogVO> logs(Long projectId, Long id) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         ensureRequest(projectId, id);
         return changeRequestMapper.selectLogsByRequestId(id);
     }
@@ -121,10 +147,7 @@ public class ChangeRequestService {
         log.setToStatus(toStatus);
         log.setOperatorId(UserContextHolder.getUserId());
         log.setComment(comment);
-        log.setCreatedBy(UserContextHolder.getUserId());
         log.setCreatedAt(now);
-        log.setUpdatedBy(UserContextHolder.getUserId());
-        log.setUpdatedAt(now);
         changeRequestMapper.insertLog(log);
     }
 }

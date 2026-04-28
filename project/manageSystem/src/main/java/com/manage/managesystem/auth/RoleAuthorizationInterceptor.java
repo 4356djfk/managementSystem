@@ -1,8 +1,10 @@
 package com.manage.managesystem.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.manage.managesystem.audit.AuditLogContext;
 import com.manage.managesystem.common.response.ApiResponse;
 import com.manage.managesystem.enums.SystemRoleEnum;
+import com.manage.managesystem.util.RoleCodeUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpMethod;
@@ -17,6 +19,10 @@ import java.util.List;
 
 @Component
 public class RoleAuthorizationInterceptor implements HandlerInterceptor {
+    private static final String UNAUTHORIZED_MESSAGE = "\u672A\u767B\u5F55\u6216\u767B\u5F55\u5DF2\u8FC7\u671F";
+    private static final String ROLE_MISSING_MESSAGE = "\u5F53\u524D\u7528\u6237\u672A\u5206\u914D\u89D2\u8272";
+    private static final String FORBIDDEN_MESSAGE = "\u6CA1\u6709\u8BBF\u95EE\u6743\u9650";
+
     private final ObjectMapper objectMapper;
 
     public RoleAuthorizationInterceptor(ObjectMapper objectMapper) {
@@ -44,21 +50,29 @@ public class RoleAuthorizationInterceptor implements HandlerInterceptor {
 
         AuthUser authUser = UserContextHolder.get();
         if (authUser == null) {
-            writeForbidden(response, HttpServletResponse.SC_UNAUTHORIZED, "未登录或登录已过期");
+            request.setAttribute(AuditLogContext.RESULT_CODE_ATTR, HttpServletResponse.SC_UNAUTHORIZED);
+            writeForbidden(response, HttpServletResponse.SC_UNAUTHORIZED, UNAUTHORIZED_MESSAGE);
             return false;
         }
 
         List<String> roleCodes = authUser.getRoleCodes();
         if (roleCodes == null || roleCodes.isEmpty()) {
-            writeForbidden(response, HttpServletResponse.SC_FORBIDDEN, "当前用户未分配角色");
+            request.setAttribute(AuditLogContext.RESULT_CODE_ATTR, HttpServletResponse.SC_FORBIDDEN);
+            writeForbidden(response, HttpServletResponse.SC_FORBIDDEN, ROLE_MISSING_MESSAGE);
             return false;
         }
 
         boolean allowed = Arrays.stream(requireRole.value())
                 .map(SystemRoleEnum::name)
                 .anyMatch(roleCodes::contains);
+        if (!allowed && RoleCodeUtils.hasBusinessUserRole(roleCodes)) {
+            allowed = Arrays.stream(requireRole.value())
+                    .map(SystemRoleEnum::name)
+                    .anyMatch(code -> !SystemRoleEnum.SYS_ADMIN.name().equals(code));
+        }
         if (!allowed) {
-            writeForbidden(response, HttpServletResponse.SC_FORBIDDEN, "没有访问权限");
+            request.setAttribute(AuditLogContext.RESULT_CODE_ATTR, HttpServletResponse.SC_FORBIDDEN);
+            writeForbidden(response, HttpServletResponse.SC_FORBIDDEN, FORBIDDEN_MESSAGE);
             return false;
         }
 

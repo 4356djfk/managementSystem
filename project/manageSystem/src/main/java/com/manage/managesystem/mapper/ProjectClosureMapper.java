@@ -44,6 +44,9 @@ public interface ProjectClosureMapper {
 
     int insertReport(ReportRecordEntity entity);
 
+    int softDeleteReport(@Param("projectId") Long projectId,
+                         @Param("id") Long id);
+
     AttachmentVO selectAttachmentById(@Param("id") Long id);
 
     int softDeleteAttachment(@Param("id") Long id, @Param("deletedAt") LocalDateTime deletedAt);

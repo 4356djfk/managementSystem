@@ -21,6 +21,8 @@ public class ReportVO {
 
     private LocalDate endDate;
 
+    private String contentJson;
+
     private String status;
 
     private Long attachmentId;

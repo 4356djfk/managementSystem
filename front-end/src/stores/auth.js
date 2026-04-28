@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { getCurrentUser, login, logout, register } from '@/api/auth'
+import { getCurrentUser, login, logout, register, updateCurrentUser } from '@/api/auth'
 
 const TOKEN_KEY = 'pm_auth_token'
 const USER_KEY = 'pm_auth_user'
@@ -35,6 +35,10 @@ export const useAuthStore = defineStore('auth', () => {
     if (token.value) {
       sessionStorage.removeItem(SESSION_EXPIRED_REDIRECT_FLAG)
     }
+  }
+
+  function replaceCurrentUser(nextUser) {
+    persistSession(token.value, nextUser)
   }
 
   async function bootstrap() {
@@ -93,6 +97,18 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function updateProfileAction(payload) {
+    loading.value = true
+
+    try {
+      const profile = await updateCurrentUser(payload)
+      replaceCurrentUser(profile)
+      return profile
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     token,
     user,
@@ -104,6 +120,8 @@ export const useAuthStore = defineStore('auth', () => {
     loginAction,
     registerAction,
     logoutAction,
+    updateProfileAction,
+    replaceCurrentUser,
   }
 })
 

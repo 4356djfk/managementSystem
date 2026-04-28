@@ -37,9 +37,7 @@ public class AuthBootstrapService implements CommandLineRunner {
     private void initRoles() {
         Map<SystemRoleEnum, String> roleNames = Map.of(
                 SystemRoleEnum.SYS_ADMIN, "系统管理员",
-                SystemRoleEnum.PROJECT_MANAGER, "项目经理",
-                SystemRoleEnum.TEAM_MEMBER, "团队成员",
-                SystemRoleEnum.READ_ONLY, "只读用户"
+                SystemRoleEnum.USER, "产品用户"
         );
         for (Map.Entry<SystemRoleEnum, String> entry : roleNames.entrySet()) {
             if (roleMapper.selectByRoleCode(entry.getKey().name()) != null) {

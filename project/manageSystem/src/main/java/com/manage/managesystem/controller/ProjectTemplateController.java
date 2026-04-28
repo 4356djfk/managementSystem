@@ -28,7 +28,7 @@ public class ProjectTemplateController {
     }
 
     @GetMapping
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<PageResult<ProjectTemplateVO>> list(@RequestParam(required = false) String type,
                                                            @RequestParam(required = false) String status,
                                                            @RequestParam(required = false) Integer page,
@@ -37,19 +37,19 @@ public class ProjectTemplateController {
     }
 
     @PostMapping
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN})
     public ApiResponse<ProjectTemplateVO> create(@Valid @RequestBody CreateProjectTemplateDto dto) {
         return ApiResponse.success(projectTemplateService.create(dto));
     }
 
     @GetMapping("/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ProjectTemplateVO> detail(@PathVariable Long id) {
         return ApiResponse.success(projectTemplateService.detail(id));
     }
 
     @PutMapping("/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN})
     public ApiResponse<ProjectTemplateVO> update(@PathVariable Long id, @Valid @RequestBody UpdateProjectTemplateDto dto) {
         return ApiResponse.success(projectTemplateService.update(id, dto));
     }

@@ -19,12 +19,15 @@ import java.util.Map;
 @Service
 public class WbsService {
     private final WbsMapper wbsMapper;
+    private final ProjectPermissionService projectPermissionService;
 
-    public WbsService(WbsMapper wbsMapper) {
+    public WbsService(WbsMapper wbsMapper, ProjectPermissionService projectPermissionService) {
         this.wbsMapper = wbsMapper;
+        this.projectPermissionService = projectPermissionService;
     }
 
     public List<WbsNodeVO> list(Long projectId) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         List<WbsNodeVO> flatList = wbsMapper.selectByProjectId(projectId);
         Map<Long, WbsNodeVO> nodeMap = new HashMap<>();
         List<WbsNodeVO> roots = new ArrayList<>();
@@ -49,6 +52,7 @@ public class WbsService {
 
     @Transactional
     public WbsNodeVO create(Long projectId, CreateWbsNodeDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         LocalDateTime now = LocalDateTime.now();
         WbsNodeEntity entity = new WbsNodeEntity();
         entity.setId(IdWorker.getId());
@@ -71,6 +75,7 @@ public class WbsService {
 
     @Transactional
     public WbsNodeVO update(Long projectId, Long id, UpdateWbsNodeDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         WbsNodeEntity entity = ensureNode(projectId, id);
         if (dto.getParentId() != null && id.equals(dto.getParentId())) {
             throw new IllegalArgumentException("WBS 节点不能设置自己为父节点");
@@ -90,6 +95,7 @@ public class WbsService {
 
     @Transactional
     public void delete(Long projectId, Long id) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureNode(projectId, id);
         if (wbsMapper.countChildren(projectId, id) > 0) {
             throw new IllegalArgumentException("当前节点存在子节点，不能删除");

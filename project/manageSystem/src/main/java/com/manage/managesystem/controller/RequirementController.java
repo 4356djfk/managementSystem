@@ -33,13 +33,13 @@ public class RequirementController {
     }
 
     @PostMapping
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<RequirementVO> create(@PathVariable Long projectId, @Valid @RequestBody CreateRequirementDto dto) {
         return ApiResponse.success(requirementService.create(projectId, dto));
     }
 
     @PutMapping("/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<RequirementVO> update(@PathVariable Long projectId, @PathVariable Long id, @Valid @RequestBody UpdateRequirementDto dto) {
         return ApiResponse.success(requirementService.update(projectId, id, dto));
     }

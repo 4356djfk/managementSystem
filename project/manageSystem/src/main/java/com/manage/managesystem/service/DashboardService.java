@@ -9,13 +9,20 @@ import java.math.BigDecimal;
 @Service
 public class DashboardService {
     private final DashboardMapper dashboardMapper;
+    private final ProjectPermissionService projectPermissionService;
 
-    public DashboardService(DashboardMapper dashboardMapper) {
+    public DashboardService(DashboardMapper dashboardMapper,
+                            ProjectPermissionService projectPermissionService) {
         this.dashboardMapper = dashboardMapper;
+        this.projectPermissionService = projectPermissionService;
     }
 
     public DashboardHomeVO home() {
-        DashboardHomeVO home = dashboardMapper.selectHome();
+        if (!projectPermissionService.hasCurrentUserBusinessRole()) {
+            return buildEmptyHome();
+        }
+        Long currentUserId = projectPermissionService.requireCurrentUserId();
+        DashboardHomeVO home = dashboardMapper.selectHome(currentUserId);
         if (home == null) {
             home = new DashboardHomeVO();
         }
@@ -28,7 +35,16 @@ public class DashboardService {
         if (home.getActualCost() == null) {
             home.setActualCost(BigDecimal.ZERO);
         }
-        home.setUpcomingMilestones(dashboardMapper.selectUpcomingMilestones());
+        home.setUpcomingMilestones(dashboardMapper.selectUpcomingMilestones(currentUserId));
+        return home;
+    }
+
+    private DashboardHomeVO buildEmptyHome() {
+        DashboardHomeVO home = new DashboardHomeVO();
+        home.setTaskCompletionRate(BigDecimal.ZERO);
+        home.setPlannedCost(BigDecimal.ZERO);
+        home.setActualCost(BigDecimal.ZERO);
+        home.setUpcomingMilestones(java.util.List.of());
         return home;
     }
 }

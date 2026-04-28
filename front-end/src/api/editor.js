@@ -1,7 +1,22 @@
 import { http } from './http'
 
+export function getProjectEditorPreferences(projectId) {
+  return http(`/projects/${projectId}/editor-preferences`)
+}
+
+export function saveProjectEditorPreferences(projectId, payload) {
+  return http(`/projects/${projectId}/editor-preferences`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function getProjectCalendar(projectId) {
   return http(`/projects/${projectId}/calendar`)
+}
+
+export function getMyCalendar() {
+  return http('/calendar/my')
 }
 
 export function getProjectCriticalPath(projectId) {
@@ -20,6 +35,12 @@ export function generateProjectReport(projectId, payload) {
   return http(`/projects/${projectId}/reports/generate`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export function deleteProjectReport(projectId, id) {
+  return http(`/projects/${projectId}/reports/${id}`, {
+    method: 'DELETE',
   })
 }
 

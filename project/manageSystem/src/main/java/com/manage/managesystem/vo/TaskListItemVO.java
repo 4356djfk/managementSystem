@@ -27,6 +27,10 @@ public class TaskListItemVO {
 
     private String assigneeName;
 
+    private Long directAssigneeId;
+
+    private String directAssigneeName;
+
     private LocalDateTime plannedStartDate;
 
     private LocalDateTime plannedEndDate;
@@ -46,6 +50,10 @@ public class TaskListItemVO {
     private String description;
 
     private Long parentTaskId;
+
+    private Long milestoneId;
+
+    private String milestoneName;
 
     private String taskType;
 }

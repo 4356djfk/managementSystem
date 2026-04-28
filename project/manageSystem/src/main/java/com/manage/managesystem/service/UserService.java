@@ -16,6 +16,7 @@ import com.manage.managesystem.enums.UserStatusEnum;
 import com.manage.managesystem.mapper.RoleMapper;
 import com.manage.managesystem.mapper.UserMapper;
 import com.manage.managesystem.mapper.UserRoleMapper;
+import com.manage.managesystem.util.RoleCodeUtils;
 import com.manage.managesystem.vo.UserListItemVO;
 import com.manage.managesystem.vo.UserProfileVO;
 import org.springframework.stereotype.Service;
@@ -41,7 +42,7 @@ public class UserService {
         List<UserEntity> users = userMapper.selectList(queryDto.getKeyword(), queryDto.getStatus());
         List<UserListItemVO> list = new ArrayList<>();
         for (UserEntity user : users) {
-            List<String> roleCodes = userRoleMapper.selectRoleCodesByUserId(user.getId());
+            List<String> roleCodes = RoleCodeUtils.normalizeSystemRoles(userRoleMapper.selectRoleCodesByUserId(user.getId()));
             if (queryDto.getRole() != null && !queryDto.getRole().isBlank() && !roleCodes.contains(queryDto.getRole())) {
                 continue;
             }
@@ -69,6 +70,7 @@ public class UserService {
         if (userMapper.selectByUsername(dto.getUsername()) != null) {
             throw new IllegalArgumentException("username already exists");
         }
+        validateRoleCombination(dto.getRoleCodes());
         List<RoleEntity> roles = validateRoles(dto.getRoleCodes());
         LocalDateTime now = LocalDateTime.now();
         Long operatorId = UserContextHolder.getUserId();
@@ -104,6 +106,7 @@ public class UserService {
         userMapper.update(user);
 
         if (dto.getRoleCodes() != null && !dto.getRoleCodes().isEmpty()) {
+            validateRoleCombination(dto.getRoleCodes());
             replaceUserRoles(userId, validateRoles(dto.getRoleCodes()), user.getUpdatedAt());
         }
         return loadUserProfile(userId);
@@ -119,6 +122,7 @@ public class UserService {
     @Transactional
     public UserProfileVO updateUserRoles(Long userId, UpdateUserRolesDto dto) {
         UserEntity user = requireUser(userId);
+        validateRoleCombination(dto.getRoleCodes());
         List<RoleEntity> roles = validateRoles(dto.getRoleCodes());
         replaceUserRoles(userId, roles, LocalDateTime.now());
         return buildUserProfile(user, extractRoleCodes(roles));
@@ -126,7 +130,7 @@ public class UserService {
 
     private UserProfileVO loadUserProfile(Long userId) {
         UserEntity user = requireUser(userId);
-        return buildUserProfile(user, userRoleMapper.selectRoleCodesByUserId(userId));
+        return buildUserProfile(user, RoleCodeUtils.normalizeSystemRoles(userRoleMapper.selectRoleCodesByUserId(userId)));
     }
 
     private UserEntity requireUser(Long userId) {
@@ -143,6 +147,13 @@ public class UserService {
             throw new IllegalArgumentException("invalid role code exists");
         }
         return roles;
+    }
+
+    private void validateRoleCombination(List<String> roleCodes) {
+        List<String> normalizedRoleCodes = RoleCodeUtils.normalizeSystemRoles(roleCodes);
+        if (normalizedRoleCodes.contains("SYS_ADMIN") && normalizedRoleCodes.contains("USER")) {
+            throw new IllegalArgumentException("SYS_ADMIN and USER cannot be assigned together");
+        }
     }
 
     private void replaceUserRoles(Long userId, List<RoleEntity> roles, LocalDateTime now) {
@@ -170,6 +181,7 @@ public class UserService {
     }
 
     private UserProfileVO buildUserProfile(UserEntity user, List<String> roleCodes) {
+        List<String> normalizedRoleCodes = RoleCodeUtils.normalizeSystemRoles(roleCodes);
         UserProfileVO vo = new UserProfileVO();
         vo.setId(user.getId());
         vo.setUsername(user.getUsername());
@@ -178,7 +190,7 @@ public class UserService {
         vo.setPhone(user.getPhone());
         vo.setAvatarUrl(user.getAvatarUrl());
         vo.setStatus(user.getStatus());
-        vo.setRoles(roleCodes);
+        vo.setRoles(normalizedRoleCodes);
         return vo;
     }
 }

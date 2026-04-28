@@ -21,6 +21,13 @@
         <result property="deleted" column="is_deleted"/>
     </resultMap>
 
+    <resultMap id="ProjectMemberCandidateMap" type="com.manage.managesystem.vo.ProjectMemberCandidateVO">
+        <id property="id" column="id"/>
+        <result property="username" column="username"/>
+        <result property="realName" column="real_name"/>
+        <result property="email" column="email"/>
+    </resultMap>
+
     <sql id="BaseUserColumns">
         id, username, password_hash, real_name, email, phone, avatar_url, status,
         last_login_at, created_by, created_at, updated_by, updated_at, is_deleted
@@ -55,6 +62,27 @@
         order by created_at desc
     </select>
 
+    <select id="selectProjectMemberCandidates" resultMap="ProjectMemberCandidateMap">
+        select distinct u.id,
+                        u.username,
+                        u.real_name,
+                        u.email
+        from sys_user u
+                 inner join sys_user_role bur on bur.user_id = u.id
+                 inner join sys_role br on br.id = bur.role_id
+        where u.is_deleted = 0
+          and u.status = 'ACTIVE'
+          and br.role_code in ('USER', 'PROJECT_MANAGER', 'TEAM_MEMBER', 'READ_ONLY')
+          and not exists (
+            select 1
+            from sys_user_role sur
+                     inner join sys_role sr on sr.id = sur.role_id
+            where sur.user_id = u.id
+              and sr.role_code = 'SYS_ADMIN'
+        )
+        order by u.created_at desc
+    </select>
+
     <insert id="insert" parameterType="com.manage.managesystem.entity.UserEntity">
         insert into sys_user (
             id, username, password_hash, real_name, email, phone, avatar_url, status,
@@ -68,6 +96,9 @@
     <update id="update" parameterType="com.manage.managesystem.entity.UserEntity">
         update sys_user
         <set>
+            <if test="username != null and username != ''">
+                username = #{username},
+            </if>
             <if test="passwordHash != null and passwordHash != ''">
                 password_hash = #{passwordHash},
             </if>

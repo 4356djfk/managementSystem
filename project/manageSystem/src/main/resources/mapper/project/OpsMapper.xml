@@ -140,6 +140,14 @@
         order by created_at desc
     </select>
 
+    <insert id="insertNotification" parameterType="com.manage.managesystem.entity.NotificationEntity">
+        insert into notification (
+            id, receiver_id, project_id, biz_type, biz_id, title, content, read_status, read_at, created_at
+        ) values (
+            #{id}, #{receiverId}, #{projectId}, #{bizType}, #{bizId}, #{title}, #{content}, #{readStatus}, #{readAt}, #{createdAt}
+        )
+    </insert>
+
     <update id="markNotificationRead">
         update notification
         set read_status = 'READ',
@@ -180,6 +188,16 @@
             id, file_name, file_url, file_size, file_type, biz_type, biz_id, uploaded_by, uploaded_at, is_deleted
         ) values (
             #{id}, #{fileName}, #{fileUrl}, #{fileSize}, #{fileType}, #{bizType}, #{bizId}, #{uploadedBy}, #{uploadedAt}, #{deleted}
+        )
+    </insert>
+
+    <insert id="insertOperationLog" parameterType="com.manage.managesystem.entity.OperationLogEntity">
+        insert into operation_log (
+            id, project_id, module_name, biz_id, action, operator_id, operator_name,
+            request_method, request_path, request_body, result_code, ip_address, created_at
+        ) values (
+            #{id}, #{projectId}, #{moduleName}, #{bizId}, #{action}, #{operatorId}, #{operatorName},
+            #{requestMethod}, #{requestPath}, #{requestBody}, #{resultCode}, #{ipAddress}, #{createdAt}
         )
     </insert>
 
@@ -247,26 +265,48 @@
     </select>
 
     <select id="selectAuditLogs" resultMap="AuditLogVoMap">
-        select id, project_id, module_name, biz_id, action, operator_id, operator_name,
-               request_method, request_path, result_code, ip_address, created_at
-        from operation_log
+        select ol.id, ol.project_id, ol.module_name, ol.biz_id, ol.action, ol.operator_id, ol.operator_name,
+               ol.request_method, ol.request_path, ol.result_code, ol.ip_address, ol.created_at
+        from operation_log ol
         where 1 = 1
         <if test="query != null and query.projectId != null">
-            and project_id = #{query.projectId}
+            and ol.project_id = #{query.projectId}
         </if>
         <if test="query != null and query.module != null and query.module != ''">
-            and module_name = #{query.module}
+            and ol.module_name = #{query.module}
         </if>
         <if test="query != null and query.operatorId != null">
-            and operator_id = #{query.operatorId}
+            and ol.operator_id = #{query.operatorId}
         </if>
         <if test="query != null and query.startTime != null">
-            and created_at <![CDATA[ >= ]]> #{query.startTime}
+            and ol.created_at <![CDATA[ >= ]]> #{query.startTime}
         </if>
         <if test="query != null and query.endTime != null">
-            and created_at <![CDATA[ <= ]]> #{query.endTime}
+            and ol.created_at <![CDATA[ <= ]]> #{query.endTime}
         </if>
-        order by created_at desc
+        <if test="query != null and query.allowedModules != null and query.allowedModules.size() > 0">
+            and ol.module_name in
+            <foreach collection="query.allowedModules" item="module" open="(" separator="," close=")">
+                #{module}
+            </foreach>
+        </if>
+        <if test="query != null and query.businessOperatorsOnly != null and query.businessOperatorsOnly">
+            and exists (
+                select 1
+                from sys_user_role bur
+                         inner join sys_role br on br.id = bur.role_id
+                where bur.user_id = ol.operator_id
+                  and br.role_code in ('USER', 'PROJECT_MANAGER', 'TEAM_MEMBER', 'READ_ONLY')
+            )
+            and not exists (
+                select 1
+                from sys_user_role sur
+                         inner join sys_role sr on sr.id = sur.role_id
+                where sur.user_id = ol.operator_id
+                  and sr.role_code = 'SYS_ADMIN'
+            )
+        </if>
+        order by ol.created_at desc
     </select>
 
 </mapper>

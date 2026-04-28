@@ -46,33 +46,33 @@ public class ProjectController {
     }
 
     @PostMapping
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ProjectDetailVO> create(@Valid @RequestBody CreateProjectDto dto) {
         return ApiResponse.success(projectService.create(dto));
     }
 
     @PutMapping("/{projectId}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ProjectDetailVO> update(@PathVariable Long projectId, @Valid @RequestBody UpdateProjectDto dto) {
         return ApiResponse.success(projectService.update(projectId, dto));
     }
 
     @PatchMapping("/{projectId}/status")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> changeStatus(@PathVariable Long projectId, @Valid @RequestBody ChangeProjectStatusDto dto) {
         projectService.changeStatus(projectId, dto);
         return ApiResponse.success(null);
     }
 
     @PostMapping("/{projectId}/close")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> close(@PathVariable Long projectId) {
         projectService.close(projectId);
         return ApiResponse.success(null);
     }
 
     @DeleteMapping("/{projectId}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> delete(@PathVariable Long projectId) {
         projectService.delete(projectId);
         return ApiResponse.success(null);
@@ -84,25 +84,25 @@ public class ProjectController {
     }
 
     @PostMapping("/{projectId}/charter")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ProjectCharterVO> createCharter(@PathVariable Long projectId, @Valid @RequestBody SaveProjectCharterDto dto) {
         return ApiResponse.success(projectService.saveCharter(projectId, dto));
     }
 
     @PutMapping("/{projectId}/charter")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ProjectCharterVO> updateCharter(@PathVariable Long projectId, @Valid @RequestBody SaveProjectCharterDto dto) {
         return ApiResponse.success(projectService.saveCharter(projectId, dto));
     }
 
     @PostMapping("/from-template")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ProjectDetailVO> createFromTemplate(@Valid @RequestBody CreateProjectFromTemplateDto dto) {
         return ApiResponse.success(projectService.createFromTemplate(dto));
     }
 
     @PostMapping("/init-demo")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ProjectDetailVO> initDemo() {
         return ApiResponse.success(projectService.initDemo());
     }

@@ -6,6 +6,7 @@ import com.manage.managesystem.dto.AddProjectMemberDto;
 import com.manage.managesystem.dto.UpdateProjectMemberDto;
 import com.manage.managesystem.enums.SystemRoleEnum;
 import com.manage.managesystem.service.ProjectMemberService;
+import com.manage.managesystem.vo.ProjectMemberCandidateVO;
 import com.manage.managesystem.vo.ProjectMemberVO;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -33,14 +34,19 @@ public class ProjectMemberController {
         return ApiResponse.success(projectMemberService.list(projectId));
     }
 
+    @GetMapping("/candidates")
+    public ApiResponse<List<ProjectMemberCandidateVO>> candidates(@PathVariable Long projectId) {
+        return ApiResponse.success(projectMemberService.listCandidates(projectId));
+    }
+
     @PostMapping
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ProjectMemberVO> add(@PathVariable Long projectId, @Valid @RequestBody AddProjectMemberDto dto) {
         return ApiResponse.success(projectMemberService.add(projectId, dto));
     }
 
     @PutMapping("/{memberId}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ProjectMemberVO> update(@PathVariable Long projectId,
                                                @PathVariable Long memberId,
                                                @Valid @RequestBody UpdateProjectMemberDto dto) {
@@ -48,7 +54,7 @@ public class ProjectMemberController {
     }
 
     @DeleteMapping("/{memberId}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> remove(@PathVariable Long projectId, @PathVariable Long memberId) {
         projectMemberService.remove(projectId, memberId);
         return ApiResponse.success(null);

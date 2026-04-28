@@ -44,13 +44,13 @@ public class ProjectClosureController {
     }
 
     @PostMapping("/projects/{projectId}/archives")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ArchiveItemVO> createArchive(@PathVariable Long projectId, @Valid @RequestBody CreateArchiveItemDto dto) {
         return ApiResponse.success(projectClosureService.createArchive(projectId, dto));
     }
 
     @DeleteMapping("/projects/{projectId}/archives/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> deleteArchive(@PathVariable Long projectId, @PathVariable Long id) {
         projectClosureService.deleteArchive(projectId, id);
         return ApiResponse.success(null);
@@ -62,26 +62,26 @@ public class ProjectClosureController {
     }
 
     @PostMapping("/projects/{projectId}/lessons-learned")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER, SystemRoleEnum.TEAM_MEMBER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<LessonLearnedVO> createLesson(@PathVariable Long projectId, @Valid @RequestBody CreateLessonLearnedDto dto) {
         return ApiResponse.success(projectClosureService.createLesson(projectId, dto));
     }
 
     @PutMapping("/projects/{projectId}/lessons-learned/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER, SystemRoleEnum.TEAM_MEMBER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<LessonLearnedVO> updateLesson(@PathVariable Long projectId, @PathVariable Long id, @Valid @RequestBody UpdateLessonLearnedDto dto) {
         return ApiResponse.success(projectClosureService.updateLesson(projectId, id, dto));
     }
 
     @DeleteMapping("/projects/{projectId}/lessons-learned/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER, SystemRoleEnum.TEAM_MEMBER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> deleteLesson(@PathVariable Long projectId, @PathVariable Long id) {
         projectClosureService.deleteLesson(projectId, id);
         return ApiResponse.success(null);
     }
 
     @PostMapping("/projects/{projectId}/reports/generate")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ReportVO> generateReport(@PathVariable Long projectId, @Valid @RequestBody GenerateReportDto dto) {
         return ApiResponse.success(projectClosureService.generateReport(projectId, dto, "PERIODIC"));
     }
@@ -91,14 +91,21 @@ public class ProjectClosureController {
         return ApiResponse.success(projectClosureService.listReports(projectId));
     }
 
+    @DeleteMapping("/projects/{projectId}/reports/{id}")
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
+    public ApiResponse<Void> deleteReport(@PathVariable Long projectId, @PathVariable Long id) {
+        projectClosureService.deleteReport(projectId, id);
+        return ApiResponse.success(null);
+    }
+
     @PostMapping("/projects/{projectId}/summary-report/generate")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<ReportVO> generateSummaryReport(@PathVariable Long projectId, @Valid @RequestBody GenerateReportDto dto) {
         return ApiResponse.success(projectClosureService.generateReport(projectId, dto, "SUMMARY"));
     }
 
     @PostMapping("/projects/{projectId}/attachments/upload")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER, SystemRoleEnum.TEAM_MEMBER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<AttachmentVO> uploadAttachment(@PathVariable Long projectId, @RequestParam("file") MultipartFile file) {
         return ApiResponse.success(projectClosureService.uploadAttachment(projectId, file));
     }
@@ -119,7 +126,7 @@ public class ProjectClosureController {
     }
 
     @DeleteMapping("/attachments/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> deleteAttachment(@PathVariable Long id) {
         projectClosureService.deleteAttachment(id);
         return ApiResponse.success(null);
@@ -134,6 +141,7 @@ public class ProjectClosureController {
             case "xlsx" -> MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
             case "xls" -> MediaType.parseMediaType("application/vnd.ms-excel");
             case "csv" -> MediaType.parseMediaType("text/csv");
+            case "pdf" -> MediaType.APPLICATION_PDF;
             default -> normalized.contains("/") ? MediaType.parseMediaType(normalized) : MediaType.APPLICATION_OCTET_STREAM;
         };
     }

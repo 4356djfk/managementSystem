@@ -19,12 +19,15 @@ import java.util.List;
 @Service
 public class RequirementService {
     private final RequirementMapper requirementMapper;
+    private final ProjectPermissionService projectPermissionService;
 
-    public RequirementService(RequirementMapper requirementMapper) {
+    public RequirementService(RequirementMapper requirementMapper, ProjectPermissionService projectPermissionService) {
         this.requirementMapper = requirementMapper;
+        this.projectPermissionService = projectPermissionService;
     }
 
     public PageResult<RequirementVO> list(Long projectId, RequirementQueryDto queryDto) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         List<RequirementVO> list = requirementMapper.selectByProjectId(projectId, queryDto);
         PageResult<RequirementVO> pageResult = new PageResult<>();
         pageResult.setList(list);
@@ -36,6 +39,7 @@ public class RequirementService {
 
     @Transactional
     public RequirementVO create(Long projectId, CreateRequirementDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         LocalDateTime now = LocalDateTime.now();
         RequirementEntity entity = new RequirementEntity();
         entity.setId(IdWorker.getId());
@@ -59,6 +63,7 @@ public class RequirementService {
 
     @Transactional
     public RequirementVO update(Long projectId, Long id, UpdateRequirementDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         RequirementEntity entity = ensureRequirement(projectId, id);
         entity.setWbsId(dto.getWbsId());
         entity.setTitle(dto.getTitle());

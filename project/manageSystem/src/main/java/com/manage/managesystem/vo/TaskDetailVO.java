@@ -18,10 +18,6 @@ public class TaskDetailVO extends TaskListItemVO {
 
     private String wbsName;
 
-    private Long milestoneId;
-
-    private String milestoneName;
-
     private Integer childTaskCount;
 
     private List<TaskDependencyVO> dependencies;

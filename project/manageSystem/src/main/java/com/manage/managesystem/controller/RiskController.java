@@ -36,25 +36,25 @@ public class RiskController {
     }
 
     @PostMapping
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<RiskVO> create(@PathVariable Long projectId, @Valid @RequestBody CreateRiskDto dto) {
         return ApiResponse.success(riskService.create(projectId, dto));
     }
 
     @PutMapping("/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<RiskVO> update(@PathVariable Long projectId, @PathVariable Long id, @Valid @RequestBody UpdateRiskDto dto) {
         return ApiResponse.success(riskService.update(projectId, id, dto));
     }
 
     @PatchMapping("/{id}/status")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<RiskVO> updateStatus(@PathVariable Long projectId, @PathVariable Long id, @Valid @RequestBody UpdateRiskStatusDto dto) {
         return ApiResponse.success(riskService.updateStatus(projectId, id, dto));
     }
 
     @DeleteMapping("/{id}")
-    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.PROJECT_MANAGER})
+    @RequireRole({SystemRoleEnum.SYS_ADMIN, SystemRoleEnum.USER})
     public ApiResponse<Void> delete(@PathVariable Long projectId, @PathVariable Long id) {
         riskService.delete(projectId, id);
         return ApiResponse.success(null);

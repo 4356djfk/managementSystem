@@ -42,6 +42,7 @@
         <result property="progressRate" column="progress_rate"/>
         <result property="plannedBudget" column="planned_budget"/>
         <result property="actualCost" column="actual_cost"/>
+        <result property="memberCount" column="member_count"/>
     </resultMap>
 
     <resultMap id="ProjectDetailVoMap" type="com.manage.managesystem.vo.ProjectDetailVO" extends="ProjectListItemVoMap">
@@ -50,7 +51,6 @@
         <result property="templateId" column="template_id"/>
         <result property="templateName" column="template_name"/>
         <result property="isDemo" column="is_demo"/>
-        <result property="memberCount" column="member_count"/>
         <result property="openRiskCount" column="open_risk_count"/>
         <result property="pendingChangeCount" column="pending_change_count"/>
     </resultMap>
@@ -101,7 +101,8 @@
                p.end_date,
                p.progress_rate,
                p.planned_budget,
-               p.actual_cost
+               p.actual_cost,
+               (select count(1) from project_member pm where pm.project_id = p.id) as member_count
         from project_info p
                  left join sys_user u on u.id = p.owner_id
         where p.is_deleted = 0

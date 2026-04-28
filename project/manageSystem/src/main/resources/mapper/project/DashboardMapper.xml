@@ -29,20 +29,117 @@
 
     <select id="selectHome" resultMap="DashboardHomeMap">
         select
-            (select count(1) from project_info p where p.is_deleted = 0) as project_count,
-            (select count(1) from project_info p where p.is_deleted = 0 and p.status in ('IN_PROGRESS', 'MONITORING')) as in_progress_project_count,
-            (select count(1) from project_task t where t.is_deleted = 0) as task_total,
-            (select count(1) from project_task t where t.is_deleted = 0 and t.status = 'DONE') as task_completed,
+            (select count(1)
+             from project_info p
+             where p.is_deleted = 0
+               and (p.owner_id = #{userId}
+                    or exists (
+                        select 1
+                        from project_member pm
+                        where pm.project_id = p.id
+                          and pm.user_id = #{userId}
+                          and pm.member_status = 'ACTIVE'
+                    ))) as project_count,
+            (select count(1)
+             from project_info p
+             where p.is_deleted = 0
+               and p.status in ('IN_PROGRESS', 'MONITORING')
+               and (p.owner_id = #{userId}
+                    or exists (
+                        select 1
+                        from project_member pm
+                        where pm.project_id = p.id
+                          and pm.user_id = #{userId}
+                          and pm.member_status = 'ACTIVE'
+                    ))) as in_progress_project_count,
+            (select count(1)
+             from project_task t
+                      inner join project_info p on p.id = t.project_id and p.is_deleted = 0
+             where t.is_deleted = 0
+               and (p.owner_id = #{userId}
+                    or exists (
+                        select 1
+                        from project_member pm
+                        where pm.project_id = p.id
+                          and pm.user_id = #{userId}
+                          and pm.member_status = 'ACTIVE'
+                    ))) as task_total,
+            (select count(1)
+             from project_task t
+                      inner join project_info p on p.id = t.project_id and p.is_deleted = 0
+             where t.is_deleted = 0
+               and t.status = 'DONE'
+               and (p.owner_id = #{userId}
+                    or exists (
+                        select 1
+                        from project_member pm
+                        where pm.project_id = p.id
+                          and pm.user_id = #{userId}
+                          and pm.member_status = 'ACTIVE'
+                    ))) as task_completed,
             (select case
                         when count(1) = 0 then 0
                         else round(sum(case when t.status = 'DONE' then 1 else 0 end) * 100.0 / count(1), 2)
                     end
              from project_task t
-             where t.is_deleted = 0) as task_completion_rate,
-            (select coalesce(sum(p.planned_budget), 0) from project_info p where p.is_deleted = 0) as planned_cost,
-            (select coalesce(sum(p.actual_cost), 0) from project_info p where p.is_deleted = 0) as actual_cost,
-            (select count(1) from risk_register r where r.is_deleted = 0 and r.status &lt;&gt; 'CLOSED') as open_risk_count,
-            (select count(1) from change_request c where c.is_deleted = 0 and c.status in ('SUBMITTED', 'UNDER_REVIEW')) as pending_change_count
+                      inner join project_info p on p.id = t.project_id and p.is_deleted = 0
+             where t.is_deleted = 0
+               and (p.owner_id = #{userId}
+                    or exists (
+                        select 1
+                        from project_member pm
+                        where pm.project_id = p.id
+                          and pm.user_id = #{userId}
+                          and pm.member_status = 'ACTIVE'
+                    ))) as task_completion_rate,
+            (select coalesce(sum(p.planned_budget), 0)
+             from project_info p
+             where p.is_deleted = 0
+               and (p.owner_id = #{userId}
+                    or exists (
+                        select 1
+                        from project_member pm
+                        where pm.project_id = p.id
+                          and pm.user_id = #{userId}
+                          and pm.member_status = 'ACTIVE'
+                    ))) as planned_cost,
+            (select coalesce(sum(p.actual_cost), 0)
+             from project_info p
+             where p.is_deleted = 0
+               and (p.owner_id = #{userId}
+                    or exists (
+                        select 1
+                        from project_member pm
+                        where pm.project_id = p.id
+                          and pm.user_id = #{userId}
+                          and pm.member_status = 'ACTIVE'
+                    ))) as actual_cost,
+            (select count(1)
+             from risk_register r
+                      inner join project_info p on p.id = r.project_id and p.is_deleted = 0
+             where r.is_deleted = 0
+               and r.status &lt;&gt; 'CLOSED'
+               and (p.owner_id = #{userId}
+                    or exists (
+                        select 1
+                        from project_member pm
+                        where pm.project_id = p.id
+                          and pm.user_id = #{userId}
+                          and pm.member_status = 'ACTIVE'
+                    ))) as open_risk_count,
+            (select count(1)
+             from change_request c
+                      inner join project_info p on p.id = c.project_id and p.is_deleted = 0
+             where c.is_deleted = 0
+               and c.status in ('SUBMITTED', 'UNDER_REVIEW')
+               and (p.owner_id = #{userId}
+                    or exists (
+                        select 1
+                        from project_member pm
+                        where pm.project_id = p.id
+                          and pm.user_id = #{userId}
+                          and pm.member_status = 'ACTIVE'
+                    ))) as pending_change_count
     </select>
 
     <select id="selectUpcomingMilestones" resultMap="MilestoneVoMap">
@@ -58,6 +155,14 @@
                  left join sys_user u on u.id = m.owner_id
                  inner join project_info p on p.id = m.project_id and p.is_deleted = 0
         where m.is_deleted = 0
+          and (p.owner_id = #{userId}
+               or exists (
+                   select 1
+                   from project_member pm
+                   where pm.project_id = p.id
+                     and pm.user_id = #{userId}
+                     and pm.member_status = 'ACTIVE'
+               ))
         order by case when m.planned_date is null then 1 else 0 end, m.planned_date asc, m.id desc
         limit 5
     </select>

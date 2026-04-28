@@ -139,6 +139,21 @@ CREATE TABLE project_member (
                                 CONSTRAINT fk_project_member_user FOREIGN KEY (user_id) REFERENCES sys_user(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE project_editor_preference (
+                                           id bigint NOT NULL PRIMARY KEY,
+                                           project_id bigint NOT NULL,
+                                           gantt_appearance_json longtext NULL,
+                                           wbs_config_json longtext NULL,
+                                           created_by bigint NULL,
+                                           created_at datetime NOT NULL,
+                                           updated_by bigint NULL,
+                                           updated_at datetime NOT NULL,
+                                           is_deleted tinyint(1) NOT NULL DEFAULT 0,
+                                           UNIQUE KEY uk_project_editor_preference_project (project_id),
+                                           KEY idx_project_editor_preference_updated (updated_at),
+                                           CONSTRAINT fk_project_editor_preference_project FOREIGN KEY (project_id) REFERENCES project_info(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 3.5 模板任务表 project_template_task
 CREATE TABLE project_template_task (
                                        id bigint NOT NULL PRIMARY KEY,
@@ -959,9 +974,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- 预置角色
 INSERT INTO sys_role (id, role_code, role_name, description, created_at, updated_at) VALUES
                                                                                          (1, 'SYS_ADMIN', '系统管理员', '系统最高权限', NOW(), NOW()),
-                                                                                         (2, 'PROJECT_MANAGER', '项目经理', '项目管理权限', NOW(), NOW()),
-                                                                                         (3, 'TEAM_MEMBER', '项目成员', '项目执行权限', NOW(), NOW()),
-                                                                                         (4, 'READ_ONLY', '只读用户', '仅查看权限', NOW(), NOW());
+                                                                                         (2, 'USER', '产品用户', '普通产品使用权限', NOW(), NOW());
 
 -- 预置项目模板
 INSERT INTO project_template (id, name, type, status, created_at, updated_at) VALUES

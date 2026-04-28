@@ -1,6 +1,7 @@
 package com.manage.managesystem.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.manage.managesystem.audit.AuditLogContext;
 import com.manage.managesystem.common.response.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,6 +15,8 @@ import java.io.IOException;
 
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
+    private static final String UNAUTHORIZED_MESSAGE = "\u672A\u767B\u5F55\u6216\u767B\u5F55\u5DF2\u8FC7\u671F";
+
     private final TokenService tokenService;
     private final ObjectMapper objectMapper;
 
@@ -32,10 +35,16 @@ public class AuthInterceptor implements HandlerInterceptor {
         String token = resolveToken(request);
         TokenSession session = tokenService.getValidSession(token);
         if (session == null) {
-            writeUnauthorized(response, HttpServletResponse.SC_UNAUTHORIZED, "未登录或登录已过期");
+            request.setAttribute(AuditLogContext.RESULT_CODE_ATTR, HttpServletResponse.SC_UNAUTHORIZED);
+            writeUnauthorized(response, HttpServletResponse.SC_UNAUTHORIZED, UNAUTHORIZED_MESSAGE);
             return false;
         }
 
+        request.setAttribute(AuditLogContext.OPERATOR_ID_ATTR, session.getUserId());
+        request.setAttribute(
+                AuditLogContext.OPERATOR_NAME_ATTR,
+                session.getRealName() != null && !session.getRealName().isBlank() ? session.getRealName() : session.getUsername()
+        );
         UserContextHolder.set(AuthUser.builder()
                 .userId(session.getUserId())
                 .username(session.getUsername())

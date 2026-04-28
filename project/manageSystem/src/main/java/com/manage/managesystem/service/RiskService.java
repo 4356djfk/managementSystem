@@ -18,18 +18,27 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class RiskService {
     private final RiskMapper riskMapper;
     private final TaskMapper taskMapper;
+    private final ProjectPermissionService projectPermissionService;
+    private final NotificationService notificationService;
 
-    public RiskService(RiskMapper riskMapper, TaskMapper taskMapper) {
+    public RiskService(RiskMapper riskMapper,
+                       TaskMapper taskMapper,
+                       ProjectPermissionService projectPermissionService,
+                       NotificationService notificationService) {
         this.riskMapper = riskMapper;
         this.taskMapper = taskMapper;
+        this.projectPermissionService = projectPermissionService;
+        this.notificationService = notificationService;
     }
 
     public PageResult<RiskVO> list(Long projectId, RiskQueryDto queryDto) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         List<RiskVO> list = riskMapper.selectByProjectId(projectId, queryDto);
         PageResult<RiskVO> pageResult = new PageResult<>();
         pageResult.setList(list);
@@ -41,6 +50,7 @@ public class RiskService {
 
     @Transactional
     public RiskVO create(Long projectId, CreateRiskDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         LocalDateTime now = LocalDateTime.now();
         RiskEntity entity = new RiskEntity();
         entity.setId(IdWorker.getId());
@@ -63,12 +73,16 @@ public class RiskService {
         entity.setUpdatedAt(now);
         entity.setDeleted(0);
         riskMapper.insert(entity);
+        notificationService.notifyRiskAssigned(entity.getOwnerId(), projectId, entity.getId(), entity.getName(), entity.getLevel());
         return riskMapper.selectById(entity.getId());
     }
 
     @Transactional
     public RiskVO update(Long projectId, Long id, UpdateRiskDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         RiskEntity entity = ensureRisk(projectId, id);
+        Long originalOwnerId = entity.getOwnerId();
+        String originalLevel = entity.getLevel();
         entity.setName(dto.getName());
         entity.setDescription(dto.getDescription());
         entity.setProbability(dto.getProbability());
@@ -81,25 +95,36 @@ public class RiskService {
         entity.setUpdatedBy(UserContextHolder.getUserId());
         entity.setUpdatedAt(LocalDateTime.now());
         riskMapper.update(entity);
+        if (!Objects.equals(originalOwnerId, entity.getOwnerId())) {
+            notificationService.notifyRiskAssigned(entity.getOwnerId(), projectId, entity.getId(), entity.getName(), entity.getLevel());
+        } else if (!Objects.equals(originalLevel, entity.getLevel()) && entity.getOwnerId() != null) {
+            notificationService.notifyRiskUpdated(entity.getOwnerId(), projectId, entity.getId(), entity.getName(), entity.getLevel(), entity.getStatus());
+        }
         return riskMapper.selectById(id);
     }
 
     @Transactional
     public RiskVO updateStatus(Long projectId, Long id, UpdateRiskStatusDto dto) {
+        projectPermissionService.ensureProjectEditor(projectId);
         RiskEntity entity = ensureRisk(projectId, id);
         String status = normalizeStatus(dto.getStatus());
         LocalDateTime closedAt = RiskStatusEnum.CLOSED.name().equals(status) ? LocalDateTime.now() : null;
         riskMapper.updateStatus(id, status, closedAt, UserContextHolder.getUserId(), LocalDateTime.now());
+        if (!Objects.equals(entity.getStatus(), status)) {
+            notificationService.notifyRiskUpdated(entity.getOwnerId(), projectId, entity.getId(), entity.getName(), entity.getLevel(), status);
+        }
         return riskMapper.selectById(entity.getId());
     }
 
     @Transactional
     public void delete(Long projectId, Long id) {
+        projectPermissionService.ensureProjectEditor(projectId);
         ensureRisk(projectId, id);
         riskMapper.softDelete(id, projectId, UserContextHolder.getUserId(), LocalDateTime.now());
     }
 
     public RiskMatrixVO riskMatrix(Long projectId) {
+        projectPermissionService.ensureProjectParticipant(projectId);
         var levels = riskMapper.selectRiskMatrix(projectId);
         RiskMatrixVO vo = new RiskMatrixVO();
         vo.setLevels(levels);
