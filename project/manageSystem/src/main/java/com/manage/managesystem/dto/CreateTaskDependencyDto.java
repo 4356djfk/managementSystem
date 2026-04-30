@@ -14,4 +14,6 @@ public class CreateTaskDependencyDto {
 
     @NotBlank
     private String dependencyType;
+
+    private Integer lagDays;
 }

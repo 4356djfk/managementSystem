@@ -83,6 +83,12 @@ public class TaskEntity extends BaseEntity {
      */
     private LocalDateTime plannedEndDate;
 
+    private LocalDateTime deadlineDate;
+
+    private String constraintType;
+
+    private LocalDateTime constraintDate;
+
     /**
      * 瀹為檯寮€濮嬫椂锟?
      */

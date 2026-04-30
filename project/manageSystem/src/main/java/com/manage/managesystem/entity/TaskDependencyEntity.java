@@ -1,9 +1,7 @@
 package com.manage.managesystem.entity;
 
-import com.manage.managesystem.entity.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import java.time.LocalDateTime;
 
 /**
  * 浠诲姟渚濊禆瀹炰綋
@@ -31,4 +29,6 @@ public class TaskDependencyEntity extends BaseEntity {
      * 渚濊禆绫诲瀷锛堝弬锟?DependencyTypeEnum锟?
      */
     private String dependencyType;
+
+    private Integer lagDays;
 }

@@ -9,4 +9,6 @@ public class SaveProjectEditorPreferenceDto {
     private Map<String, Object> ganttAppearance;
 
     private Map<String, Object> wbsConfig;
+
+    private Map<String, Object> scheduleOptions;
 }

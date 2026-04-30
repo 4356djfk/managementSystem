@@ -9,6 +9,7 @@
         <result property="projectId" column="project_id"/>
         <result property="ganttAppearanceJson" column="gantt_appearance_json"/>
         <result property="wbsConfigJson" column="wbs_config_json"/>
+        <result property="scheduleOptionsJson" column="schedule_options_json"/>
         <result property="createdBy" column="created_by"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedBy" column="updated_by"/>
@@ -21,6 +22,7 @@
                project_id,
                gantt_appearance_json,
                wbs_config_json,
+               schedule_options_json,
                created_by,
                created_at,
                updated_by,
@@ -34,10 +36,10 @@
 
     <insert id="insert" parameterType="com.manage.managesystem.entity.ProjectEditorPreferenceEntity">
         insert into project_editor_preference (
-            id, project_id, gantt_appearance_json, wbs_config_json,
+            id, project_id, gantt_appearance_json, wbs_config_json, schedule_options_json,
             created_by, created_at, updated_by, updated_at, is_deleted
         ) values (
-            #{id}, #{projectId}, #{ganttAppearanceJson}, #{wbsConfigJson},
+            #{id}, #{projectId}, #{ganttAppearanceJson}, #{wbsConfigJson}, #{scheduleOptionsJson},
             #{createdBy}, #{createdAt}, #{updatedBy}, #{updatedAt}, #{deleted}
         )
     </insert>
@@ -46,6 +48,7 @@
         update project_editor_preference
         set gantt_appearance_json = #{ganttAppearanceJson},
             wbs_config_json = #{wbsConfigJson},
+            schedule_options_json = #{scheduleOptionsJson},
             updated_by = #{updatedBy},
             updated_at = #{updatedAt}
         where project_id = #{projectId}

@@ -35,6 +35,12 @@ public class TaskListItemVO {
 
     private LocalDateTime plannedEndDate;
 
+    private LocalDateTime deadlineDate;
+
+    private String constraintType;
+
+    private LocalDateTime constraintDate;
+
     private LocalDateTime actualStartDate;
 
     private LocalDateTime actualEndDate;

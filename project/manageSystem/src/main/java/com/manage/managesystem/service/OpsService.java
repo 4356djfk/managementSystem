@@ -21,6 +21,7 @@ import com.manage.managesystem.entity.TimesheetEntity;
 import com.manage.managesystem.enums.ExportFormatEnum;
 import com.manage.managesystem.enums.ExportModuleEnum;
 import com.manage.managesystem.enums.RiskStatusEnum;
+import com.manage.managesystem.enums.TaskConstraintTypeEnum;
 import com.manage.managesystem.enums.TaskStatusEnum;
 import com.manage.managesystem.enums.TaskTypeEnum;
 import com.manage.managesystem.mapper.CostMapper;
@@ -633,8 +634,8 @@ public class OpsService {
             Sheet sheet = workbook.createSheet("template");
             switch (module) {
                 case "TASK" -> {
-                    writeSheetRow(sheet, 0, List.of("name", "description", "status", "taskType", "priority", "progress", "plannedStartDate", "plannedEndDate", "plannedHours", "parentTaskId", "remark"));
-                    writeSheetRow(sheet, 1, List.of("Requirement analysis", "Clarify scope and workflow", "TODO", "TASK", "MEDIUM", "0", "2026-04-26 09:00:00", "2026-04-28 18:00:00", "24", "", "Imported template sample"));
+                    writeSheetRow(sheet, 0, List.of("name", "description", "status", "taskType", "priority", "progress", "plannedStartDate", "plannedEndDate", "deadlineDate", "constraintType", "constraintDate", "plannedHours", "parentTaskId", "remark"));
+                    writeSheetRow(sheet, 1, List.of("Requirement analysis", "Clarify scope and workflow", "TODO", "TASK", "MEDIUM", "0", "2026-04-26 09:00:00", "2026-04-28 18:00:00", "2026-04-29 18:00:00", "FNLT", "2026-04-28 18:00:00", "24", "", "Imported template sample"));
                 }
                 case "RISK" -> {
                     writeSheetRow(sheet, 0, List.of("name", "description", "probability", "impact", "level", "status", "responseStrategy", "taskId", "phaseName"));
@@ -661,7 +662,7 @@ public class OpsService {
     }
 
     private void buildTaskExportSheet(Sheet sheet, Long projectId) {
-        writeSheetRow(sheet, 0, List.of("ID", "Name", "Description", "Status", "TaskType", "Priority", "Progress", "PlannedStartDate", "PlannedEndDate", "PlannedHours", "Remark"));
+        writeSheetRow(sheet, 0, List.of("ID", "Name", "Description", "Status", "TaskType", "Priority", "Progress", "PlannedStartDate", "PlannedEndDate", "DeadlineDate", "ConstraintType", "ConstraintDate", "PlannedHours", "Remark"));
         int rowIndex = 1;
         for (var item : taskMapper.selectByProjectId(projectId, null)) {
             writeSheetRow(sheet, rowIndex++, List.of(
@@ -674,6 +675,9 @@ public class OpsService {
                     safeCell(item.getProgress()),
                     safeCell(item.getPlannedStartDate()),
                     safeCell(item.getPlannedEndDate()),
+                    safeCell(item.getDeadlineDate()),
+                    safeCell(item.getConstraintType()),
+                    safeCell(item.getConstraintDate()),
                     safeCell(item.getPlannedHours()),
                     safeCell(item.getRemark())
             ));
@@ -1270,6 +1274,9 @@ public class OpsService {
                 entity.setProgress(parseNullableDecimal(findValue(row, "progress"), BigDecimal.ZERO));
                 entity.setPlannedStartDate(parseNullableDateTime(findValue(row, "plannedStartDate", "plannedstartdate", "start")));
                 entity.setPlannedEndDate(parseNullableDateTime(findValue(row, "plannedEndDate", "plannedenddate", "finish", "end")));
+                entity.setDeadlineDate(parseNullableDateTime(findValue(row, "deadlineDate", "deadlinedate", "deadline")));
+                entity.setConstraintType(parseTaskConstraintType(findValue(row, "constraintType", "constrainttype")));
+                entity.setConstraintDate(parseNullableDateTime(findValue(row, "constraintDate", "constraintdate")));
                 entity.setPlannedHours(parseNullableDecimal(findValue(row, "plannedHours", "plannedhours", "duration"), BigDecimal.ZERO));
                 entity.setSortOrder(baseSortOrder + index + 1);
                 entity.setRemark(nullableText(findValue(row, "remark", "mode")));
@@ -1608,6 +1615,18 @@ public class OpsService {
             case "DONE", "COMPLETED", "FINISHED" -> TaskStatusEnum.DONE.name();
             default -> throw new IllegalArgumentException("invalid task status: " + normalized);
         };
+    }
+
+    private String parseTaskConstraintType(String value) {
+        String normalized = nullableText(value);
+        if (normalized == null) {
+            return null;
+        }
+        try {
+            return TaskConstraintTypeEnum.valueOf(normalized.toUpperCase(Locale.ROOT)).name();
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("invalid task constraint type: " + normalized);
+        }
     }
 
     private String parseRiskStatus(String value) {

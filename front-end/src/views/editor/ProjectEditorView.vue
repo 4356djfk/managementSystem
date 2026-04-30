@@ -1,5 +1,5 @@
 ﻿<script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -186,6 +186,21 @@ import UserAvatar from '@/components/ui/UserAvatar.vue'
 import { useAuthStore } from '@/stores/auth'
 import { recordRecentProject } from '@/utils/recentProjects'
 
+const ProjectTaskInfoDialog = defineAsyncComponent(() => import('./components/ProjectTaskInfoDialog.vue'))
+const ProjectPendingReviewDialog = defineAsyncComponent(() => import('./components/ProjectPendingReviewDialog.vue'))
+const ProjectMilestoneDialog = defineAsyncComponent(() => import('./components/ProjectMilestoneDialog.vue'))
+const ProjectRiskDialog = defineAsyncComponent(() => import('./components/ProjectRiskDialog.vue'))
+const ProjectQualityPlanDialog = defineAsyncComponent(() => import('./components/ProjectQualityPlanDialog.vue'))
+const ProjectQualityActivityDialog = defineAsyncComponent(() => import('./components/ProjectQualityActivityDialog.vue'))
+const ProjectQualityMetricDialog = defineAsyncComponent(() => import('./components/ProjectQualityMetricDialog.vue'))
+const ProjectTestPlanDialog = defineAsyncComponent(() => import('./components/ProjectTestPlanDialog.vue'))
+const ProjectTestCaseDialog = defineAsyncComponent(() => import('./components/ProjectTestCaseDialog.vue'))
+const ProjectDefectDialog = defineAsyncComponent(() => import('./components/ProjectDefectDialog.vue'))
+const ProjectTestReportDialog = defineAsyncComponent(() => import('./components/ProjectTestReportDialog.vue'))
+const ProjectRiskMatrixDialog = defineAsyncComponent(() => import('./components/ProjectRiskMatrixDialog.vue'))
+const ProjectCommunicationMatrixDialog = defineAsyncComponent(() => import('./components/ProjectCommunicationMatrixDialog.vue'))
+const ProjectWbsDialog = defineAsyncComponent(() => import('./components/ProjectWbsDialog.vue'))
+
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
@@ -196,6 +211,7 @@ const DAY_NAMES = ['日', '一', '二', '三', '四', '五', '六']
 const EDITABLE_FIELDS = ['mode', 'name', 'duration', 'start', 'finish']
 const GANTT_APPEARANCE_STORAGE_KEY = 'pm_global_gantt_appearance'
 const WBS_CONFIG_STORAGE_PREFIX = 'pm_project_wbs_config_'
+const SCHEDULE_OPTIONS_STORAGE_PREFIX = 'pm_project_schedule_options_'
 const COST_DRAFT_BINDINGS_STORAGE_PREFIX = 'pm_project_cost_draft_bindings_'
 let nextDraftCostPlanId = 1
 
@@ -384,6 +400,7 @@ const taskMineOnly = ref(false)
 const selectedBarStyleType = ref('main')
 let ganttAppearanceSnapshot = null
 let wbsConfigSnapshot = null
+let scheduleOptionsSnapshot = null
 let syncingTaskProgressForm = false
 const wbsTreeExpandedKeys = ref({})
 const activeScopeBaselineId = ref(null)
@@ -452,11 +469,15 @@ const taskBasicForm = reactive({
   description: '',
   milestoneId: '',
   assigneeId: '',
+  deadlineDate: '',
+  constraintType: '',
+  constraintDate: '',
 })
 
 const taskDependencyForm = reactive({
   predecessorTaskId: '',
   dependencyType: 'FS',
+  lagDays: 0,
 })
 
 const taskCommentForm = reactive({
@@ -844,6 +865,15 @@ function createDefaultWbsConfig() {
 
 const wbsConfig = reactive(createDefaultWbsConfig())
 
+function createDefaultScheduleOptions() {
+  return {
+    scheduleMode: 'CALENDAR_DAY',
+    holidayDates: [],
+  }
+}
+
+const scheduleOptions = reactive(createDefaultScheduleOptions())
+
 function createDefaultGanttAppearance() {
   return {
     mainColor: ganttFormats[0].taskColor,
@@ -870,6 +900,34 @@ function createDefaultGanttAppearance() {
 }
 
 const ganttAppearance = reactive(createDefaultGanttAppearance())
+
+const scheduleModeOptions = [
+  { label: '自然日', value: 'CALENDAR_DAY' },
+  { label: '工作日', value: 'WORKDAY' },
+]
+
+const currentScheduleModeLabel = computed(
+  () => scheduleModeOptions.find((item) => item.value === scheduleOptions.scheduleMode)?.label || '自然日',
+)
+
+const currentScheduleModeDescription = computed(() => (
+  scheduleOptions.scheduleMode === 'WORKDAY'
+    ? '工作日模式下，任务工期会跳过周六/周日，并额外排除你配置的节假日；非工作日会顺延到下一个工作日。'
+    : '自然日模式下，任务工期按连续日历日计算；额外配置的节假日会保留，但只在工作日模式下生效。'
+))
+
+const configuredHolidayDateSet = computed(() => new Set(normalizeScheduleHolidayDates(scheduleOptions.holidayDates)))
+
+const scheduleHolidaySummary = computed(() => {
+  const holidayDates = normalizeScheduleHolidayDates(scheduleOptions.holidayDates)
+  if (!holidayDates.length) {
+    return scheduleOptions.scheduleMode === 'WORKDAY'
+      ? '周六/周日会自动排除，当前未额外配置法定假日。'
+      : '当前未配置额外非工作日；切换到工作日模式后，系统会自动排除周六/周日。'
+  }
+  const preview = holidayDates.slice(0, 4).join('、')
+  return `已额外配置 ${holidayDates.length} 个非工作日${preview ? `：${preview}${holidayDates.length > 4 ? ' 等' : ''}` : ''}。`
+})
 
 const ganttBarStyleOptions = [
   { key: 'main', label: '主任务' },
@@ -1004,6 +1062,18 @@ const baselineStatusOptions = [
   { label: '草稿', value: 'DRAFT' },
   { label: '已发布', value: 'PUBLISHED' },
   { label: '已作废', value: 'VOID' },
+]
+
+const taskConstraintTypeOptions = [
+  { label: '无约束', value: '' },
+  { label: '尽早开始 ASAP', value: 'ASAP' },
+  { label: '尽晚完成 ALAP', value: 'ALAP' },
+  { label: '开始不早于 SNET', value: 'SNET' },
+  { label: '开始不晚于 SNLT', value: 'SNLT' },
+  { label: '完成不早于 FNET', value: 'FNET' },
+  { label: '完成不晚于 FNLT', value: 'FNLT' },
+  { label: '必须开始于 MSO', value: 'MSO' },
+  { label: '必须完成于 MFO', value: 'MFO' },
 ]
 
 const isConfigBaselineDialogMode = computed(() => configurationDialogMode.value === 'config-baselines')
@@ -1226,6 +1296,7 @@ const currentRibbonGroups = computed(() => {
           { key: 'calendar', label: '日程' },
           { key: 'alerts', label: '预警' },
           { key: 'pending-review', label: '待验收' },
+          { key: 'project-reschedule', label: '重新推排' },
           { key: 'project-task-overview', label: '项目任务总览' },
           { key: 'my-tasks', label: '我的任务' },
           { key: 'save', label: '保存' },
@@ -1540,6 +1611,7 @@ const contextActionTabMap = {
   'calendar': 'task',
   'alerts': 'task',
   'pending-review': 'task',
+  'project-reschedule': 'task',
   'project-task-overview': 'task',
   'my-tasks': 'task',
   'open-gantt-style': 'format',
@@ -1682,6 +1754,7 @@ function buildToolbarContextMenuGroups() {
       createContextMenuAction('report-open', '报表中心', '打开报表中心'),
     ]),
     createContextMenuGroup('操作', [
+      createContextMenuAction('project-reschedule', '重新推排', '按依赖和约束重算', { hideWhenDisabled: true }),
       createContextMenuAction('save', '保存内容', '保存当前编辑', { hideWhenDisabled: true }),
       createContextMenuAction('back', '返回首页', '回到项目列表'),
     ]),
@@ -1720,6 +1793,7 @@ function buildTaskGridContextMenuGroups() {
       createContextMenuAction('project-members', '项目成员', '查看可分配成员'),
     ]),
     createContextMenuGroup('操作', [
+      createContextMenuAction('project-reschedule', '重新推排', '按依赖和约束重算', { hideWhenDisabled: true }),
       createContextMenuAction('save', '保存内容', '保存当前计划', { hideWhenDisabled: true }),
     ]),
   ].filter(Boolean)
@@ -1730,6 +1804,7 @@ function buildTimelineContextMenuGroups() {
     createContextMenuGroup('任务', [
       createContextMenuAction('calendar', '日程', '查看任务日程'),
       createContextMenuAction('alerts', '预警', '查看计划预警'),
+      createContextMenuAction('project-reschedule', '重新推排', '按依赖和约束重算', { hideWhenDisabled: true }),
       createContextMenuAction('project-task-overview', '项目任务总览', '回到全部任务视图'),
       createContextMenuAction('my-tasks', '我的任务', '切换个人任务视图'),
     ]),
@@ -2103,6 +2178,42 @@ function saveProjectWbsConfig() {
   localStorage.setItem(`${WBS_CONFIG_STORAGE_PREFIX}${projectId.value}`, JSON.stringify(cloneWbsConfig()))
 }
 
+function cloneScheduleOptions() {
+  return normalizeScheduleOptionsConfig(scheduleOptions)
+}
+
+function getScheduleOptionsSignature(config = scheduleOptions) {
+  return JSON.stringify(normalizeScheduleOptionsConfig(config))
+}
+
+function applyScheduleOptions(config) {
+  const next = normalizeScheduleOptionsConfig(config)
+  scheduleOptions.scheduleMode = next.scheduleMode
+  scheduleOptions.holidayDates = next.holidayDates
+}
+
+function readProjectScheduleOptionsFromLocal() {
+  try {
+    const raw = localStorage.getItem(`${SCHEDULE_OPTIONS_STORAGE_PREFIX}${projectId.value}`)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function loadProjectScheduleOptions() {
+  const localConfig = readProjectScheduleOptionsFromLocal()
+  if (localConfig) {
+    applyScheduleOptions(localConfig)
+  } else {
+    applyScheduleOptions(createDefaultScheduleOptions())
+  }
+}
+
+function saveProjectScheduleOptions() {
+  localStorage.setItem(`${SCHEDULE_OPTIONS_STORAGE_PREFIX}${projectId.value}`, JSON.stringify(cloneScheduleOptions()))
+}
+
 async function loadProjectEditorPreferenceData(options = {}) {
   const { migrateLocalFallback = false } = options
   let preference = null
@@ -2114,8 +2225,10 @@ async function loadProjectEditorPreferenceData(options = {}) {
 
   const localGanttAppearance = readGlobalGanttAppearanceFromLocal()
   const localWbsConfig = readProjectWbsConfigFromLocal()
+  const localScheduleOptions = readProjectScheduleOptionsFromLocal()
   const hasRemoteGanttAppearance = Boolean(preference?.ganttAppearance && Object.keys(preference.ganttAppearance).length)
   const hasRemoteWbsConfig = Boolean(preference?.wbsConfig && Object.keys(preference.wbsConfig).length)
+  const hasRemoteScheduleOptions = Boolean(preference?.scheduleOptions && Object.keys(preference.scheduleOptions).length)
 
   if (hasRemoteGanttAppearance) {
     applyGanttAppearanceConfig(preference.ganttAppearance)
@@ -2133,15 +2246,25 @@ async function loadProjectEditorPreferenceData(options = {}) {
     applyWbsConfig(createDefaultWbsConfig())
   }
 
+  if (hasRemoteScheduleOptions) {
+    applyScheduleOptions(preference.scheduleOptions)
+  } else if (localScheduleOptions) {
+    loadProjectScheduleOptions()
+  } else {
+    applyScheduleOptions(createDefaultScheduleOptions())
+  }
+
   saveGlobalGanttAppearance()
   saveProjectWbsConfig()
+  saveProjectScheduleOptions()
+  applyScheduleModeToProjectAndTasks()
 
   if (!migrateLocalFallback) {
     return
   }
 
-  const hasRemotePreference = hasRemoteGanttAppearance || hasRemoteWbsConfig
-  const hasLocalFallback = Boolean(localGanttAppearance || localWbsConfig)
+  const hasRemotePreference = hasRemoteGanttAppearance || hasRemoteWbsConfig || hasRemoteScheduleOptions
+  const hasLocalFallback = Boolean(localGanttAppearance || localWbsConfig || localScheduleOptions)
   if (!hasRemotePreference && hasLocalFallback && canEditProjectContent.value) {
     try {
       await persistProjectEditorPreferenceData()
@@ -2155,9 +2278,11 @@ async function persistProjectEditorPreferenceData() {
   await saveProjectEditorPreferences(projectId.value, {
     ganttAppearance: cloneGanttAppearance(),
     wbsConfig: cloneWbsConfig(),
+    scheduleOptions: cloneScheduleOptions(),
   })
   saveGlobalGanttAppearance()
   saveProjectWbsConfig()
+  saveProjectScheduleOptions()
 }
 
 function formatWbsSegment(index) {
@@ -2187,6 +2312,9 @@ function createEmptyRow(mode = '手动计划', isPlaceholder = true) {
     duration: '',
     start: '',
     finish: '',
+    deadlineDate: '',
+    constraintType: '',
+    constraintDate: '',
     taskType: 'TASK',
     status: 'TODO',
     progress: 0,
@@ -2279,6 +2407,9 @@ function createRowFromTask(task, index) {
   row.name = task.name || ''
   row.start = toDateValue(task.plannedStartDate)
   row.finish = toDateValue(task.plannedEndDate)
+  row.deadlineDate = task.deadlineDate ? formatDateText(task.deadlineDate) : ''
+  row.constraintType = task.constraintType || ''
+  row.constraintDate = task.constraintDate ? formatDateText(task.constraintDate) : ''
   row.duration = formatDuration(task.plannedHours)
   row.progress = normalized.progress
   row.status = normalized.status
@@ -2292,7 +2423,7 @@ function createRowFromTask(task, index) {
   row.sortOrder = task.sortOrder ?? index + 1
 
   if (!row.duration && row.start && row.finish) {
-    row.duration = String(diffDays(new Date(`${row.start}T00:00:00`), new Date(`${row.finish}T00:00:00`)) + 1)
+    row.duration = String(getScheduledDurationDays(parseDateValue(row.start), parseDateValue(row.finish)))
   }
 
   return row
@@ -2593,6 +2724,7 @@ async function restoreScopeBaseline(item) {
 function replaceTaskRows(rows) {
   isHydratingRows.value = true
   taskRows.value = rebuildHierarchyFromBackend(rows)
+  applyScheduleModeToProjectAndTasks()
   refreshWbsCodes()
   ensureMinimumRows()
   ensureTrailingEmptyRows()
@@ -2948,7 +3080,7 @@ function syncSummaryRows() {
       if (starts.length) row.start = starts[0]
       if (finishes.length) row.finish = finishes[finishes.length - 1]
       if (row.start && row.finish) {
-        row.duration = String(diffDays(new Date(`${row.start}T00:00:00`), new Date(`${row.finish}T00:00:00`)) + 1)
+        row.duration = String(getScheduledDurationDays(parseDateValue(row.start), parseDateValue(row.finish)))
       }
     }
   } finally {
@@ -2999,11 +3131,190 @@ function diffDays(startDate, endDate) {
   return Math.floor((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000))
 }
 
+function parseDateValue(value) {
+  if (!value) return null
+  return new Date(`${String(value).slice(0, 10)}T00:00:00`)
+}
+
 function formatDateToValue(date) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function normalizePlainDateValue(value) {
+  const parsed = parseDateValue(value)
+  if (!parsed) return ''
+  return formatDateToValue(parsed)
+}
+
+function normalizeScheduleHolidayDates(value) {
+  if (!Array.isArray(value)) return []
+  const deduped = new Set()
+  return value
+    .map((item) => normalizePlainDateValue(item))
+    .filter(Boolean)
+    .filter((item) => {
+      if (deduped.has(item)) return false
+      deduped.add(item)
+      return true
+    })
+    .sort((left, right) => left.localeCompare(right))
+}
+
+function normalizeScheduleOptionsConfig(config) {
+  const next = { ...createDefaultScheduleOptions(), ...(config || {}) }
+  return {
+    scheduleMode: next.scheduleMode === 'WORKDAY' ? 'WORKDAY' : 'CALENDAR_DAY',
+    holidayDates: normalizeScheduleHolidayDates(next.holidayDates),
+  }
+}
+
+function isWeekendDate(date) {
+  const day = date.getDay()
+  return day === 0 || day === 6
+}
+
+function isConfiguredHolidayDate(date) {
+  const normalized = date instanceof Date ? formatDateToValue(date) : normalizePlainDateValue(date)
+  if (!normalized) return false
+  return configuredHolidayDateSet.value.has(normalized)
+}
+
+function isNonWorkingScheduleDate(date) {
+  return isWeekendDate(date) || isConfiguredHolidayDate(date)
+}
+
+function isWorkdayScheduleMode() {
+  return scheduleOptions.scheduleMode === 'WORKDAY'
+}
+
+function moveDateToNextWorkday(date) {
+  let next = new Date(date)
+  while (isNonWorkingScheduleDate(next)) {
+    next = addDays(next, 1)
+  }
+  return next
+}
+
+function normalizeDateToScheduleMode(date) {
+  if (!date) return null
+  return isWorkdayScheduleMode() ? moveDateToNextWorkday(date) : new Date(date)
+}
+
+function normalizeDateValueToScheduleMode(value) {
+  const parsed = parseDateValue(value)
+  if (!parsed) return ''
+  return formatDateToValue(normalizeDateToScheduleMode(parsed))
+}
+
+function countWorkdaysInclusive(startDate, endDate) {
+  let count = 0
+  let cursor = new Date(startDate)
+  while (cursor <= endDate) {
+    if (!isNonWorkingScheduleDate(cursor)) {
+      count += 1
+    }
+    cursor = addDays(cursor, 1)
+  }
+  return count
+}
+
+function getScheduledDurationDays(startDate, endDate) {
+  if (!startDate || !endDate) return 0
+  const normalizedStart = normalizeDateToScheduleMode(startDate)
+  const normalizedEnd = normalizeDateToScheduleMode(endDate)
+  if (normalizedEnd < normalizedStart) return 1
+  if (!isWorkdayScheduleMode()) {
+    return diffDays(normalizedStart, normalizedEnd) + 1
+  }
+  return Math.max(countWorkdaysInclusive(normalizedStart, normalizedEnd), 1)
+}
+
+function addScheduledDays(startDate, days) {
+  const normalizedStart = normalizeDateToScheduleMode(startDate)
+  if (!isWorkdayScheduleMode()) {
+    return addDays(normalizedStart, days)
+  }
+  let next = new Date(normalizedStart)
+  let remaining = Number(days || 0)
+  const step = remaining >= 0 ? 1 : -1
+  while (remaining !== 0) {
+    next = addDays(next, step)
+    if (!isNonWorkingScheduleDate(next)) {
+      remaining -= step
+    }
+  }
+  return next
+}
+
+function normalizeTaskRowDates(row) {
+  if (!row || typeof row !== 'object') return false
+  let changed = false
+
+  for (const field of ['start', 'finish']) {
+    const current = String(row[field] || '').trim()
+    if (!current) continue
+    const normalized = normalizeDateValueToScheduleMode(current)
+    if (normalized && normalized !== current) {
+      row[field] = normalized
+      changed = true
+    }
+  }
+
+  const beforeStart = row.start
+  const beforeFinish = row.finish
+  clampRowToBounds(row)
+  changed = changed || beforeStart !== row.start || beforeFinish !== row.finish
+
+  if (row.start && row.finish && row.finish < row.start) {
+    row.finish = row.start
+    changed = true
+  }
+
+  if (isMilestoneRow(row) && row.start && row.finish !== row.start) {
+    row.finish = row.start
+    changed = true
+  }
+
+  return changed
+}
+
+function normalizeTaskRowDuration(row) {
+  if (!row.start || !row.finish) return false
+  const nextDuration = String(getScheduledDurationDays(parseDateValue(row.start), parseDateValue(row.finish)))
+  if (row.duration === nextDuration) return false
+  row.duration = nextDuration
+  return true
+}
+
+function applyScheduleModeToProjectAndTasks() {
+  if (!taskRows.value.length) return false
+  const beforeMap = new Map(
+    taskRows.value.map((row) => [row.localId, `${row.start || ''}|${row.finish || ''}|${row.duration || ''}|${row.deadlineDate || ''}|${row.constraintType || ''}|${row.constraintDate || ''}`]),
+  )
+
+  for (const row of taskRows.value) {
+    normalizeTaskRowDates(row)
+    row.deadlineDate = row.deadlineDate ? normalizeDateValueToScheduleMode(row.deadlineDate) : ''
+    const constraint = getTaskConstraintSnapshot(row)
+    row.constraintType = constraint.type || ''
+    row.constraintDate = constraint.date || ''
+    if (!isSummaryRow(row)) {
+      normalizeTaskRowDuration(row)
+    }
+  }
+
+  syncSummaryRows()
+
+  if (selectedTaskRow.value?.localId) {
+    taskBasicForm.deadlineDate = selectedTaskRow.value.deadlineDate || ''
+    taskBasicForm.constraintType = selectedTaskRow.value.constraintType || ''
+    taskBasicForm.constraintDate = selectedTaskRow.value.constraintDate || ''
+  }
+
+  return taskRows.value.some((row) => beforeMap.get(row.localId) !== `${row.start || ''}|${row.finish || ''}|${row.duration || ''}|${row.deadlineDate || ''}|${row.constraintType || ''}|${row.constraintDate || ''}`)
 }
 
 function getParentRow(row) {
@@ -3014,8 +3325,8 @@ function getParentRow(row) {
 function getProjectDateBounds() {
   if (!projectForm.startDate || !projectForm.endDate) return null
   return {
-    min: projectForm.startDate,
-    max: projectForm.endDate,
+    min: normalizeDateValueToScheduleMode(projectForm.startDate),
+    max: normalizeDateValueToScheduleMode(projectForm.endDate),
   }
 }
 
@@ -3023,8 +3334,8 @@ function getParentDateBounds(row) {
   const parent = getParentRow(row)
   if (!parent || !parent.start || !parent.finish) return null
   return {
-    min: parent.start,
-    max: parent.finish,
+    min: normalizeDateValueToScheduleMode(parent.start),
+    max: normalizeDateValueToScheduleMode(parent.finish),
   }
 }
 
@@ -3063,7 +3374,696 @@ function clampRowToBounds(row) {
   }
 }
 
+function getTaskScheduleSignature(row) {
+  return `${row?.start || ''}|${row?.finish || ''}|${row?.duration || ''}`
+}
+
+function captureTaskScheduleSnapshot() {
+  return new Map(taskRows.value.map((row) => [row.localId, getTaskScheduleSignature(row)]))
+}
+
+function collectChangedTaskIdsFromScheduleSnapshot(snapshot) {
+  const changedTaskIds = new Set()
+  for (const row of taskRows.value) {
+    if (snapshot.get(row.localId) !== getTaskScheduleSignature(row) && row.taskId) {
+      changedTaskIds.add(String(row.taskId))
+    }
+  }
+  return changedTaskIds
+}
+
+function normalizeDependencyTypeValue(value) {
+  const normalized = String(value || 'FS').trim().toUpperCase()
+  return ['FS', 'SS', 'FF', 'SF'].includes(normalized) ? normalized : 'FS'
+}
+
+function getDependencyPredecessorAnchorKey(type) {
+  return type === 'SS' || type === 'SF' ? 'start' : 'finish'
+}
+
+function getDependencySuccessorAnchorKey(type) {
+  return type === 'FF' || type === 'SF' ? 'finish' : 'start'
+}
+
+function getIncomingTaskDependencies(taskId) {
+  return projectTaskDependencies.value.filter(
+    (item) => String(item?.successorTaskId || '') === String(taskId || ''),
+  )
+}
+
+function getOutgoingTaskDependencies(taskId) {
+  return projectTaskDependencies.value.filter(
+    (item) => String(item?.predecessorTaskId || '') === String(taskId || ''),
+  )
+}
+
+function getScheduledOffsetDays(fromDate, toDate) {
+  if (!fromDate || !toDate) return 0
+  const normalizedFrom = normalizeDateToScheduleMode(fromDate)
+  const normalizedTo = normalizeDateToScheduleMode(toDate)
+  if (!isWorkdayScheduleMode()) {
+    return diffDays(normalizedFrom, normalizedTo)
+  }
+  if (normalizedFrom.getTime() === normalizedTo.getTime()) {
+    return 0
+  }
+
+  let offset = 0
+  let cursor = new Date(normalizedFrom)
+  const step = normalizedTo > normalizedFrom ? 1 : -1
+
+  while (cursor.getTime() !== normalizedTo.getTime()) {
+    cursor = addDays(cursor, step)
+    if (!isNonWorkingScheduleDate(cursor)) {
+      offset += step
+    }
+  }
+
+  return offset
+}
+
+function getTaskConstraintSnapshot(row, override = null) {
+  const overrideConstraintType = override && (
+    Object.prototype.hasOwnProperty.call(override, 'constraintType')
+      ? override.constraintType
+      : (Object.prototype.hasOwnProperty.call(override, 'type') ? override.type : undefined)
+  )
+  const normalizedConstraintType = normalizeTaskConstraintTypeValue(
+    overrideConstraintType !== undefined ? overrideConstraintType : row?.constraintType,
+  ) || ''
+  const rawConstraintDate = override && Object.prototype.hasOwnProperty.call(override, 'constraintDate')
+    ? override.constraintDate
+    : (
+      override && Object.prototype.hasOwnProperty.call(override, 'date')
+        ? override.date
+        : row?.constraintDate
+    )
+  const normalizedConstraintDate = requiresTaskConstraintDate(normalizedConstraintType)
+    ? normalizeDateValueToScheduleMode(rawConstraintDate ? String(rawConstraintDate).slice(0, 10) : '')
+    : ''
+
+  return {
+    type: normalizedConstraintType,
+    date: normalizedConstraintDate,
+  }
+}
+
+function getTaskConstraintRequestedOffset(row, constraint = getTaskConstraintSnapshot(row)) {
+  const type = constraint?.type || ''
+  const constraintDate = parseDateValue(constraint?.date)
+  if (!type || !constraintDate) return 0
+
+  const startDate = parseDateValue(row?.start)
+  const finishDate = parseDateValue(row?.finish)
+
+  switch (type) {
+    case 'SNET':
+      return startDate && normalizeDateToScheduleMode(startDate) < constraintDate
+        ? getScheduledOffsetDays(startDate, constraintDate)
+        : 0
+    case 'SNLT':
+      return startDate && normalizeDateToScheduleMode(startDate) > constraintDate
+        ? getScheduledOffsetDays(startDate, constraintDate)
+        : 0
+    case 'FNET':
+      return finishDate && normalizeDateToScheduleMode(finishDate) < constraintDate
+        ? getScheduledOffsetDays(finishDate, constraintDate)
+        : 0
+    case 'FNLT':
+      return finishDate && normalizeDateToScheduleMode(finishDate) > constraintDate
+        ? getScheduledOffsetDays(finishDate, constraintDate)
+        : 0
+    case 'MSO':
+      return startDate && normalizeDateToScheduleMode(startDate).getTime() !== constraintDate.getTime()
+        ? getScheduledOffsetDays(startDate, constraintDate)
+        : 0
+    case 'MFO':
+      return finishDate && normalizeDateToScheduleMode(finishDate).getTime() !== constraintDate.getTime()
+        ? getScheduledOffsetDays(finishDate, constraintDate)
+        : 0
+    default:
+      return 0
+  }
+}
+
+function getTaskRowShiftLimits(row, constraint = getTaskConstraintSnapshot(row)) {
+  const lowerBounds = []
+  const upperBounds = []
+  const bounds = getRowDateBounds(row)
+  const startDate = parseDateValue(row?.start)
+  const finishDate = parseDateValue(row?.finish)
+
+  if (bounds?.min) {
+    const minDate = parseDateValue(bounds.min)
+    if (minDate && startDate) {
+      lowerBounds.push(getScheduledOffsetDays(startDate, minDate))
+    }
+    if (minDate && finishDate) {
+      lowerBounds.push(getScheduledOffsetDays(finishDate, minDate))
+    }
+  }
+
+  if (bounds?.max) {
+    const maxDate = parseDateValue(bounds.max)
+    if (maxDate && startDate) {
+      upperBounds.push(getScheduledOffsetDays(startDate, maxDate))
+    }
+    if (maxDate && finishDate) {
+      upperBounds.push(getScheduledOffsetDays(finishDate, maxDate))
+    }
+  }
+
+  const constraintDate = parseDateValue(constraint?.date)
+  if (constraint?.type && constraintDate) {
+    switch (constraint.type) {
+      case 'SNET':
+        if (startDate) lowerBounds.push(getScheduledOffsetDays(startDate, constraintDate))
+        break
+      case 'SNLT':
+        if (startDate) upperBounds.push(getScheduledOffsetDays(startDate, constraintDate))
+        break
+      case 'FNET':
+        if (finishDate) lowerBounds.push(getScheduledOffsetDays(finishDate, constraintDate))
+        break
+      case 'FNLT':
+        if (finishDate) upperBounds.push(getScheduledOffsetDays(finishDate, constraintDate))
+        break
+      case 'MSO':
+        if (startDate) {
+          const offset = getScheduledOffsetDays(startDate, constraintDate)
+          lowerBounds.push(offset)
+          upperBounds.push(offset)
+        }
+        break
+      case 'MFO':
+        if (finishDate) {
+          const offset = getScheduledOffsetDays(finishDate, constraintDate)
+          lowerBounds.push(offset)
+          upperBounds.push(offset)
+        }
+        break
+      default:
+        break
+    }
+  }
+
+  return {
+    minOffset: lowerBounds.length ? Math.max(...lowerBounds) : Number.NEGATIVE_INFINITY,
+    maxOffset: upperBounds.length ? Math.min(...upperBounds) : Number.POSITIVE_INFINITY,
+  }
+}
+
+function getTaskSubtreeShiftLimits(rootRow, options = {}) {
+  const startIndex = findRowIndex(rootRow?.localId)
+  if (startIndex < 0) {
+    return {
+      minOffset: Number.NEGATIVE_INFINITY,
+      maxOffset: Number.POSITIVE_INFINITY,
+    }
+  }
+  const endIndex = findSubtreeEndIndex(startIndex)
+  const overrideMap = options.constraintOverrides || new Map()
+  let minOffset = Number.NEGATIVE_INFINITY
+  let maxOffset = Number.POSITIVE_INFINITY
+
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const row = taskRows.value[index]
+    if (!row || isBlankPlaceholderRow(row)) continue
+    const rowConstraint = overrideMap.get(row.localId) || null
+    const rowLimits = getTaskRowShiftLimits(row, getTaskConstraintSnapshot(row, rowConstraint))
+    minOffset = Math.max(minOffset, rowLimits.minOffset)
+    maxOffset = Math.min(maxOffset, rowLimits.maxOffset)
+  }
+
+  return { minOffset, maxOffset }
+}
+
+function getDependencyRequiredDate(predecessorRow, dependency) {
+  if (!predecessorRow) return null
+  const type = normalizeDependencyTypeValue(dependency?.dependencyType)
+  const predecessorAnchorKey = getDependencyPredecessorAnchorKey(type)
+  const baseDate = parseDateValue(predecessorRow[predecessorAnchorKey])
+  if (!baseDate) return null
+  const lagDays = Number(dependency?.lagDays || 0)
+  const offset = type === 'FS' ? lagDays + 1 : lagDays
+  return addScheduledDays(baseDate, offset)
+}
+
+function shiftTaskSubtreeByScheduledOffset(rootRow, offsetDays, options = {}) {
+  const requestedOffset = Number(offsetDays || 0)
+  if (!rootRow?.localId || requestedOffset === 0) {
+    return {
+      changedTaskIds: new Set(),
+      blocked: false,
+    }
+  }
+
+  const shiftLimits = getTaskSubtreeShiftLimits(rootRow, options)
+  let allowedOffset = 0
+  if (requestedOffset > 0) {
+    allowedOffset = Math.max(Math.min(requestedOffset, shiftLimits.maxOffset), 0)
+  } else {
+    allowedOffset = Math.min(Math.max(requestedOffset, shiftLimits.minOffset), 0)
+  }
+
+  if (allowedOffset === 0) {
+    return {
+      changedTaskIds: new Set(),
+      blocked: requestedOffset !== 0,
+    }
+  }
+
+  const beforeSnapshot = captureTaskScheduleSnapshot()
+  const startIndex = findRowIndex(rootRow.localId)
+  if (startIndex < 0) {
+    return {
+      changedTaskIds: new Set(),
+      blocked: requestedOffset > 0,
+    }
+  }
+  const endIndex = findSubtreeEndIndex(startIndex)
+  if (endIndex < startIndex) {
+    return {
+      changedTaskIds: new Set(),
+      blocked: requestedOffset > 0,
+    }
+  }
+
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const row = taskRows.value[index]
+    if (!row || isBlankPlaceholderRow(row)) continue
+
+    if (row.start) {
+      row.start = formatDateToValue(addScheduledDays(parseDateValue(row.start), allowedOffset))
+    }
+    if (row.finish) {
+      row.finish = formatDateToValue(addScheduledDays(parseDateValue(row.finish), allowedOffset))
+    }
+    normalizeTaskRowDates(row)
+    if (!isSummaryRow(row) && row.start && row.finish) {
+      syncDurationFromDates(row)
+    }
+  }
+
+  syncSummaryRows()
+
+  return {
+    changedTaskIds: collectChangedTaskIdsFromScheduleSnapshot(beforeSnapshot),
+    blocked: allowedOffset !== requestedOffset,
+  }
+}
+
+function applyTaskConstraintSchedule(row, options = {}) {
+  if (!row?.localId) {
+    return {
+      changed: false,
+      blocked: false,
+      changedTaskIds: [],
+    }
+  }
+
+  const constraintOverride = options.constraintOverride || null
+  const constraint = getTaskConstraintSnapshot(row, constraintOverride)
+  const requestedOffset = getTaskConstraintRequestedOffset(row, constraint)
+  if (!requestedOffset) {
+    return {
+      changed: false,
+      blocked: false,
+      changedTaskIds: [],
+    }
+  }
+
+  const result = shiftTaskSubtreeByScheduledOffset(
+    row,
+    requestedOffset,
+    {
+      constraintOverrides: new Map([[row.localId, constraintOverride || constraint]]),
+    },
+  )
+
+  return {
+    changed: result.changedTaskIds.size > 0,
+    blocked: result.blocked,
+    changedTaskIds: [...result.changedTaskIds],
+  }
+}
+
+function applySingleDependencyScheduleRule(dependency) {
+  const predecessorRow = findRowByTaskId(dependency?.predecessorTaskId)
+  const successorRow = findRowByTaskId(dependency?.successorTaskId)
+  if (!predecessorRow || !successorRow) {
+    return {
+      changedTaskIds: new Set(),
+      blocked: false,
+    }
+  }
+
+  const type = normalizeDependencyTypeValue(dependency?.dependencyType)
+  const successorAnchorKey = getDependencySuccessorAnchorKey(type)
+  const currentAnchorDate = parseDateValue(successorRow[successorAnchorKey])
+  const requiredDate = getDependencyRequiredDate(predecessorRow, dependency)
+  if (!currentAnchorDate || !requiredDate) {
+    return {
+      changedTaskIds: new Set(),
+      blocked: false,
+    }
+  }
+
+  if (normalizeDateToScheduleMode(currentAnchorDate).getTime() >= requiredDate.getTime()) {
+    return {
+      changedTaskIds: new Set(),
+      blocked: false,
+    }
+  }
+
+  const requestedOffset = getScheduledOffsetDays(currentAnchorDate, requiredDate)
+  const result = shiftTaskSubtreeByScheduledOffset(successorRow, requestedOffset)
+  const refreshedSuccessorRow = findRowByTaskId(dependency?.successorTaskId) || successorRow
+  const actualAnchorDate = parseDateValue(refreshedSuccessorRow[successorAnchorKey])
+  const blocked = result.blocked
+    || !actualAnchorDate
+    || normalizeDateToScheduleMode(actualAnchorDate).getTime() < requiredDate.getTime()
+
+  return {
+    changedTaskIds: result.changedTaskIds,
+    blocked,
+  }
+}
+
+function propagateTaskDependencySchedule(taskIds, options = {}) {
+  if (!canManageProject.value || !projectTaskDependencies.value.length) {
+    return {
+      changed: false,
+      blocked: false,
+      changedTaskIds: [],
+    }
+  }
+
+  const queue = [...new Set(
+    normalizeListResult(taskIds)
+      .map((item) => String(item || '').trim())
+      .filter(Boolean),
+  )]
+  if (!queue.length) {
+    return {
+      changed: false,
+      blocked: false,
+      changedTaskIds: [],
+    }
+  }
+
+  const pendingTaskIds = new Set(queue)
+  const changedTaskIds = new Set()
+  const maxIterations = Math.max(projectTaskDependencies.value.length * Math.max(taskRows.value.length, 1), 50)
+  let blocked = false
+  let iterations = 0
+
+  while (queue.length && iterations < maxIterations) {
+    iterations += 1
+    const currentTaskId = queue.shift()
+    pendingTaskIds.delete(currentTaskId)
+
+    const relatedDependencies = [
+      ...getIncomingTaskDependencies(currentTaskId),
+      ...getOutgoingTaskDependencies(currentTaskId),
+    ]
+
+    for (const dependency of relatedDependencies) {
+      const result = applySingleDependencyScheduleRule(dependency)
+      if (result.blocked) {
+        blocked = true
+      }
+      for (const changedTaskId of result.changedTaskIds) {
+        changedTaskIds.add(changedTaskId)
+        if (!pendingTaskIds.has(changedTaskId)) {
+          queue.push(changedTaskId)
+          pendingTaskIds.add(changedTaskId)
+        }
+      }
+    }
+  }
+
+  if (queue.length) {
+    blocked = true
+  }
+
+  if (blocked && !options.silent) {
+    ElMessage.warning('部分任务受项目日期或父任务范围限制，依赖关系未能完全推排到位')
+  }
+
+  return {
+    changed: changedTaskIds.size > 0,
+    blocked,
+    changedTaskIds: [...changedTaskIds],
+  }
+}
+
+function applyDependencyScheduleAfterTaskRowChange(row) {
+  if (!canManageProject.value || !row) return
+  const beforeSnapshot = captureTaskScheduleSnapshot()
+  applyTaskConstraintSchedule(row)
+  syncSummaryRows()
+  const seedTaskIds = new Set(row.taskId ? [String(row.taskId)] : [])
+  for (const changedTaskId of collectChangedTaskIdsFromScheduleSnapshot(beforeSnapshot)) {
+    seedTaskIds.add(changedTaskId)
+  }
+  propagateTaskDependencySchedule([...seedTaskIds], { silent: true })
+}
+
+function buildTaskConstraintViolations() {
+  return taskRows.value
+    .filter((row) => !isBlankPlaceholderRow(row))
+    .map((row) => {
+      const constraint = getTaskConstraintSnapshot(row)
+      if (!constraint.type) return null
+
+      if (requiresTaskConstraintDate(constraint.type) && !constraint.date) {
+        return {
+          row,
+          message: `任务“${row.name || row.taskId || '未命名任务'}”缺少约束日期`,
+        }
+      }
+
+      const startDate = parseDateValue(row.start)
+      const finishDate = parseDateValue(row.finish)
+      const constraintDate = parseDateValue(constraint.date)
+      if (!constraintDate) return null
+
+      const normalizedStart = startDate ? normalizeDateToScheduleMode(startDate) : null
+      const normalizedFinish = finishDate ? normalizeDateToScheduleMode(finishDate) : null
+
+      if (constraint.type === 'SNET' && normalizedStart && normalizedStart < constraintDate) {
+        return { row, message: `任务“${row.name || row.taskId || '未命名任务'}”违反“开始不早于 ${constraint.date}”约束` }
+      }
+      if (constraint.type === 'SNLT' && normalizedStart && normalizedStart > constraintDate) {
+        return { row, message: `任务“${row.name || row.taskId || '未命名任务'}”违反“开始不晚于 ${constraint.date}”约束` }
+      }
+      if (constraint.type === 'FNET' && normalizedFinish && normalizedFinish < constraintDate) {
+        return { row, message: `任务“${row.name || row.taskId || '未命名任务'}”违反“完成不早于 ${constraint.date}”约束` }
+      }
+      if (constraint.type === 'FNLT' && normalizedFinish && normalizedFinish > constraintDate) {
+        return { row, message: `任务“${row.name || row.taskId || '未命名任务'}”违反“完成不晚于 ${constraint.date}”约束` }
+      }
+      if (constraint.type === 'MSO' && normalizedStart && normalizedStart.getTime() !== constraintDate.getTime()) {
+        return { row, message: `任务“${row.name || row.taskId || '未命名任务'}”违反“必须开始于 ${constraint.date}”约束` }
+      }
+      if (constraint.type === 'MFO' && normalizedFinish && normalizedFinish.getTime() !== constraintDate.getTime()) {
+        return { row, message: `任务“${row.name || row.taskId || '未命名任务'}”违反“必须完成于 ${constraint.date}”约束` }
+      }
+
+      return null
+    })
+    .filter(Boolean)
+}
+
+function ensureTaskConstraintScheduleConsistency() {
+  const violations = buildTaskConstraintViolations()
+  if (!violations.length) return
+  throw new Error(violations[0].message)
+}
+
+function buildDependencyScheduleViolations() {
+  return projectTaskDependencies.value
+    .map((dependency) => {
+      const predecessorRow = findRowByTaskId(dependency?.predecessorTaskId)
+      const successorRow = findRowByTaskId(dependency?.successorTaskId)
+      if (!predecessorRow || !successorRow) return null
+
+      const type = normalizeDependencyTypeValue(dependency?.dependencyType)
+      const successorAnchorKey = getDependencySuccessorAnchorKey(type)
+      const currentAnchorDate = parseDateValue(successorRow[successorAnchorKey])
+      const requiredDate = getDependencyRequiredDate(predecessorRow, dependency)
+      if (!currentAnchorDate || !requiredDate) return null
+      if (normalizeDateToScheduleMode(currentAnchorDate).getTime() >= requiredDate.getTime()) return null
+
+      return {
+        predecessorName: predecessorRow.name || dependency?.predecessorTaskName || `任务 ${dependency?.predecessorTaskId || ''}`,
+        successorName: successorRow.name || dependency?.successorTaskName || `任务 ${dependency?.successorTaskId || ''}`,
+        type,
+        targetLabel: successorAnchorKey === 'finish' ? '完成日期' : '开始日期',
+        requiredDate: formatDateToValue(requiredDate),
+        currentDate: successorRow[successorAnchorKey] || '',
+      }
+    })
+    .filter(Boolean)
+}
+
+function ensureDependencyScheduleConsistency() {
+  if (!canManageProject.value) return
+  const violations = buildDependencyScheduleViolations()
+  if (!violations.length) return
+  const first = violations[0]
+  throw new Error(
+    `存在未满足的任务依赖，请先调整：${first.predecessorName} -> ${first.successorName}（${first.type}，要求${first.targetLabel}不早于 ${first.requiredDate}，当前为 ${first.currentDate || '未设置'}）`,
+  )
+}
+
+function captureTaskPlanningStateSnapshot() {
+  return taskRows.value.map((row) => ({
+    localId: row.localId,
+    start: row.start,
+    finish: row.finish,
+    duration: row.duration,
+    deadlineDate: row.deadlineDate,
+    constraintType: row.constraintType,
+    constraintDate: row.constraintDate,
+  }))
+}
+
+function restoreTaskPlanningStateSnapshot(snapshot) {
+  if (!Array.isArray(snapshot)) return
+  const snapshotMap = new Map(snapshot.map((item) => [item.localId, item]))
+  for (const row of taskRows.value) {
+    const previous = snapshotMap.get(row.localId)
+    if (!previous) continue
+    row.start = previous.start
+    row.finish = previous.finish
+    row.duration = previous.duration
+    row.deadlineDate = previous.deadlineDate
+    row.constraintType = previous.constraintType
+    row.constraintDate = previous.constraintDate
+  }
+}
+
+function getPersistedTaskIds() {
+  return [...new Set(
+    taskRows.value
+      .map((row) => String(row?.taskId || '').trim())
+      .filter(Boolean),
+  )]
+}
+
+function hasTaskScheduleSnapshotChanged(snapshot) {
+  if (!(snapshot instanceof Map)) return false
+  if (snapshot.size !== taskRows.value.length) return true
+  return taskRows.value.some((row) => snapshot.get(row.localId) !== getTaskScheduleSignature(row))
+}
+
+function rescheduleProjectTasks(options = {}) {
+  const planningSnapshot = captureTaskPlanningStateSnapshot()
+  const beforeScheduleSnapshot = captureTaskScheduleSnapshot()
+  const persistedTaskIds = getPersistedTaskIds()
+  const maxIterations = Math.max(taskRows.value.length * Math.max(projectTaskDependencies.value.length, 1), 20)
+  let blocked = false
+  let stabilized = false
+  let iterations = 0
+
+  try {
+    for (const row of taskRows.value) {
+      if (!row || isBlankPlaceholderRow(row)) continue
+      normalizeTaskRowDates(row)
+      if (!isSummaryRow(row)) {
+        normalizeTaskRowDuration(row)
+      }
+    }
+    syncSummaryRows()
+
+    while (iterations < maxIterations) {
+      iterations += 1
+      const iterationSnapshot = captureTaskScheduleSnapshot()
+
+      for (const row of taskRows.value) {
+        if (!row || isBlankPlaceholderRow(row)) continue
+        const constraintResult = applyTaskConstraintSchedule(row)
+        if (constraintResult.blocked) {
+          blocked = true
+        }
+      }
+
+      syncSummaryRows()
+
+      if (persistedTaskIds.length) {
+        const dependencyResult = propagateTaskDependencySchedule(persistedTaskIds, { silent: true })
+        if (dependencyResult.blocked) {
+          blocked = true
+        }
+      }
+
+      syncSummaryRows()
+
+      if (!hasTaskScheduleSnapshotChanged(iterationSnapshot)) {
+        stabilized = true
+        break
+      }
+    }
+
+    const constraintViolations = buildTaskConstraintViolations()
+    const dependencyViolations = buildDependencyScheduleViolations()
+    const changed = hasTaskScheduleSnapshotChanged(beforeScheduleSnapshot)
+    const changedTaskIds = [...collectChangedTaskIdsFromScheduleSnapshot(beforeScheduleSnapshot)]
+
+    if (changed) {
+      hasUnsavedChanges.value = true
+    }
+
+    return {
+      changed,
+      blocked: blocked || !stabilized || constraintViolations.length > 0 || dependencyViolations.length > 0,
+      iterations,
+      changedTaskIds,
+      constraintViolations,
+      dependencyViolations,
+    }
+  } catch (error) {
+    restoreTaskPlanningStateSnapshot(planningSnapshot)
+    throw error
+  }
+}
+
+function rerunProjectSchedule() {
+  if (!requireProjectManagePermission('重新推排项目计划')) return
+  if (!taskRows.value.some((row) => hasRowContent(row) && !isBlankPlaceholderRow(row))) {
+    ElMessage.warning('当前没有可推排的任务')
+    return
+  }
+
+  const result = rescheduleProjectTasks()
+  if (result.constraintViolations.length || result.dependencyViolations.length) {
+    const firstMessage = result.constraintViolations[0]?.message
+      || (result.dependencyViolations[0]
+        ? `依赖未完全满足：${result.dependencyViolations[0].predecessorName} -> ${result.dependencyViolations[0].successorName}`
+        : '')
+    ElMessage.warning(firstMessage || '已尽量重新推排，但仍存在未解决的排程冲突')
+    return
+  }
+
+  if (result.blocked) {
+    ElMessage.warning('已尽量重新推排，但部分任务受项目日期或父任务范围限制，未能完全到位')
+    return
+  }
+
+  if (result.changed) {
+    ElMessage.success('项目任务已按约束和依赖重新推排，请继续保存任务计划')
+    return
+  }
+
+  ElMessage.info('当前排程已是最新，无需重新推排')
+}
+
 function isDateDisabledByParent(row, date) {
+  if (disabledScheduleModeDate(date)) {
+    return true
+  }
   const bounds = getRowDateBounds(row)
   if (!bounds) return false
   const value = formatDateToValue(date)
@@ -3072,33 +4072,42 @@ function isDateDisabledByParent(row, date) {
 
 function syncDurationFromDates(row) {
   if (!row.start || !row.finish) return
+  normalizeTaskRowDates(row)
   if (row.finish < row.start) row.finish = row.start
-  row.duration = String(diffDays(new Date(`${row.start}T00:00:00`), new Date(`${row.finish}T00:00:00`)) + 1)
+  row.duration = String(getScheduledDurationDays(parseDateValue(row.start), parseDateValue(row.finish)))
 }
 
 function syncFinishFromDuration(row) {
   const duration = parseDuration(row.duration)
   if (!row.start || duration === null) return
-  row.finish = formatDateToValue(addDays(new Date(`${row.start}T00:00:00`), Math.max(duration, 1) - 1))
+  row.start = normalizeDateValueToScheduleMode(row.start)
+  row.finish = formatDateToValue(addScheduledDays(parseDateValue(row.start), Math.max(duration, 1) - 1))
+  normalizeTaskRowDates(row)
 }
 
 function handleStartInput(row) {
   if (!row.start) return
+  normalizeTaskRowDates(row)
   if (parseDuration(row.duration) !== null) syncFinishFromDuration(row)
   else if (row.finish) syncDurationFromDates(row)
   clampRowToBounds(row)
   if (row.start && row.finish) syncDurationFromDates(row)
+  applyDependencyScheduleAfterTaskRowChange(row)
 }
 
 function handleFinishInput(row) {
+  normalizeTaskRowDates(row)
   clampRowToBounds(row)
   if (row.start && row.finish) syncDurationFromDates(row)
+  applyDependencyScheduleAfterTaskRowChange(row)
 }
 
 function handleDurationInput(row) {
+  normalizeTaskRowDates(row)
   if (parseDuration(row.duration) !== null && row.start) syncFinishFromDuration(row)
   clampRowToBounds(row)
   if (row.start && row.finish) syncDurationFromDates(row)
+  applyDependencyScheduleAfterTaskRowChange(row)
 }
 
 function buildTaskPayload(row, index) {
@@ -3106,6 +4115,7 @@ function buildTaskPayload(row, index) {
   if (!name) {
     throw new Error(`第 ${index + 1} 行任务名称不能为空`)
   }
+  normalizeTaskRowDates(row)
   if (!row.start || !row.finish) {
     throw new Error(`第 ${index + 1} 行需要填写开始时间和完成时间`)
   }
@@ -3126,6 +4136,11 @@ function buildTaskPayload(row, index) {
   const loadedTask = row.taskId
     ? loadedTasks.value.find((task) => String(task.id || '') === String(row.taskId || '')) || null
     : null
+  const scheduleMetadata = buildTaskScheduleMetadata(
+    row.deadlineDate || loadedTask?.deadlineDate,
+    row.constraintType || loadedTask?.constraintType,
+    row.constraintDate || loadedTask?.constraintDate,
+  )
 
   return {
     name,
@@ -3135,15 +4150,18 @@ function buildTaskPayload(row, index) {
     assigneeId: row.directAssigneeId || null,
     plannedStartDate: `${row.start}T00:00:00`,
     plannedEndDate: `${row.finish}T00:00:00`,
+    deadlineDate: scheduleMetadata.deadlineDate,
+    constraintType: scheduleMetadata.constraintType,
+    constraintDate: scheduleMetadata.constraintDate,
     plannedHours,
-      priority: 'MEDIUM',
-      taskType: isMilestoneRow(row) ? 'MILESTONE_TASK' : mapModeToTaskType(row.mode),
-      status: row.status || 'TODO',
-      progress: Number(row.progress || 0),
-      sortOrder: index + 1,
-      remark: row.mode || '',
-    }
+    priority: 'MEDIUM',
+    taskType: isMilestoneRow(row) ? 'MILESTONE_TASK' : mapModeToTaskType(row.mode),
+    status: row.status || 'TODO',
+    progress: Number(row.progress || 0),
+    sortOrder: index + 1,
+    remark: row.mode || '',
   }
+}
 
 async function loadProjectDetailData() {
   const detail = await getProjectDetail(projectId.value)
@@ -3284,6 +4302,7 @@ async function saveEditorContent() {
   try {
     saving.value = true
     if (!canManageProject.value) {
+      ensureTaskConstraintScheduleConsistency()
       const editableRows = taskRows.value.filter((row) => canEditTaskRow(row) && hasRowContent(row))
       for (const row of editableRows) {
         const index = taskRows.value.findIndex((item) => item.localId === row.localId)
@@ -3295,6 +4314,16 @@ async function saveEditorContent() {
       ElMessage.success('本人任务已保存')
       return
     }
+
+    const persistedTaskIds = taskRows.value
+      .map((row) => String(row.taskId || '').trim())
+      .filter(Boolean)
+    if (persistedTaskIds.length) {
+      propagateTaskDependencySchedule(persistedTaskIds, { silent: true })
+      ensureTaskConstraintScheduleConsistency()
+      ensureDependencyScheduleConsistency()
+    }
+
     const filledRows = taskRows.value.filter(hasRowContent)
     const persistedIds = new Set()
     const existingTaskIds = new Set(loadedTasks.value.map((task) => String(task.id)))
@@ -3385,24 +4414,45 @@ function normalizeProjectDates() {
   if (projectForm.startDate && projectForm.startDate < todayString) {
     projectForm.startDate = todayString
   }
+  if (projectForm.startDate) {
+    projectForm.startDate = normalizeDateValueToScheduleMode(projectForm.startDate)
+  }
+  if (projectForm.endDate) {
+    projectForm.endDate = normalizeDateValueToScheduleMode(projectForm.endDate)
+  }
   if (projectForm.endDate && projectForm.startDate && projectForm.endDate <= projectForm.startDate) {
     projectForm.endDate = ''
   }
 }
 
 function disabledStartDate(date) {
-  return date.getTime() < new Date(`${todayString}T00:00:00`).getTime()
+  if (date.getTime() < new Date(`${todayString}T00:00:00`).getTime()) {
+    return true
+  }
+  return disabledScheduleModeDate(date)
 }
 
 function disabledEndDate(date) {
-  const minDate = projectForm.startDate || todayString
+  if (disabledScheduleModeDate(date)) {
+    return true
+  }
+  const minDate = normalizeDateValueToScheduleMode(projectForm.startDate || todayString)
   return date.getTime() <= new Date(`${minDate}T00:00:00`).getTime()
+}
+
+function disabledScheduleModeDate(date) {
+  return isWorkdayScheduleMode() && isNonWorkingScheduleDate(date)
+}
+
+function disabledHolidayPickerDate(date) {
+  return isWeekendDate(date)
 }
 
 async function openProjectInfo() {
   loading.value = true
   try {
     await loadProjectDetailData()
+    normalizeProjectDates()
     infoDialogVisible.value = true
   } finally {
     loading.value = false
@@ -4801,6 +5851,16 @@ function formatPriorityText(priority) {
   return changePriorityOptions.find((item) => item.value === priority)?.label || priority || '-'
 }
 
+function formatTaskConstraintType(type) {
+  return taskConstraintTypeOptions.find((item) => item.value === (type || ''))?.label || type || '无约束'
+}
+
+function formatDependencyLagText(lagDays) {
+  const value = Number(lagDays || 0)
+  if (!Number.isFinite(value) || value === 0) return '无偏移'
+  return value > 0 ? `滞后 ${value} 天` : `提前 ${Math.abs(value)} 天`
+}
+
 function formatArchiveType(type) {
   return archiveTypeOptions.find((item) => item.value === type)?.label || type || '-'
 }
@@ -5018,11 +6078,22 @@ function resetTaskBasicForm(detail = null) {
   taskBasicForm.assigneeId = detail?.directAssigneeId != null
     ? String(detail.directAssigneeId)
     : (selectedTaskRow.value?.directAssigneeId || '')
+  taskBasicForm.deadlineDate = detail?.deadlineDate ? formatDateText(detail.deadlineDate) : (selectedTaskRow.value?.deadlineDate || '')
+  taskBasicForm.constraintType = detail?.constraintType || selectedTaskRow.value?.constraintType || ''
+  taskBasicForm.constraintDate = detail?.constraintDate ? formatDateText(detail.constraintDate) : (selectedTaskRow.value?.constraintDate || '')
 }
 
 function resetTaskDependencyForm() {
   taskDependencyForm.predecessorTaskId = ''
   taskDependencyForm.dependencyType = 'FS'
+  taskDependencyForm.lagDays = 0
+}
+
+function handleTaskConstraintTypeChange(value) {
+  taskBasicForm.constraintType = normalizeTaskConstraintTypeValue(value) || ''
+  if (!requiresTaskConstraintDate(taskBasicForm.constraintType)) {
+    taskBasicForm.constraintDate = ''
+  }
 }
 
 function resetTaskCommentForm() {
@@ -5097,11 +6168,43 @@ function normalizeDateTimeValue(value) {
   return normalized.length === 16 ? `${normalized}:00` : normalized
 }
 
-function normalizeMilestonePlannedDateValue(value) {
+function normalizeDateFieldValue(value) {
   if (!value) return null
   const raw = String(value).trim()
   if (!raw) return null
   return raw.length === 10 ? `${raw}T00:00:00` : normalizeDateTimeValue(raw)
+}
+
+function normalizeDateFieldValueToScheduleMode(value) {
+  if (!value) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  const normalizedDate = normalizeDateValueToScheduleMode(raw.slice(0, 10))
+  return normalizedDate ? `${normalizedDate}T00:00:00` : null
+}
+
+function normalizeTaskConstraintTypeValue(value) {
+  const raw = String(value || '').trim().toUpperCase()
+  return raw || null
+}
+
+function requiresTaskConstraintDate(type) {
+  return ['SNET', 'SNLT', 'FNET', 'FNLT', 'MSO', 'MFO'].includes(String(type || '').toUpperCase())
+}
+
+function buildTaskScheduleMetadata(deadlineDate, constraintType, constraintDate) {
+  const normalizedConstraintType = normalizeTaskConstraintTypeValue(constraintType)
+  return {
+    deadlineDate: normalizeDateFieldValueToScheduleMode(deadlineDate),
+    constraintType: normalizedConstraintType,
+    constraintDate: requiresTaskConstraintDate(normalizedConstraintType)
+      ? normalizeDateFieldValueToScheduleMode(constraintDate)
+      : null,
+  }
+}
+
+function normalizeMilestonePlannedDateValue(value) {
+  return normalizeDateFieldValue(value)
 }
 
 function findMilestoneTaskRow(localId) {
@@ -5450,6 +6553,199 @@ const taskRelatedRisks = computed(() => {
   if (!taskId) return []
   return riskList.value.filter((item) => String(item.taskId || '') === taskId)
 })
+
+const taskInfoDialogPermissions = computed(() => ({
+  canEditTaskBasic: canEditTaskBasic.value,
+  canManageTaskBasic: canManageTaskBasic.value,
+  canEditTaskDependency: canEditTaskDependency.value,
+  canCommentOnTasks: canCommentOnTasks.value,
+  selectedTaskCanUpdateProgress: selectedTaskCanUpdateProgress.value,
+  selectedTaskCanSubmitReview: selectedTaskCanSubmitReview.value,
+  selectedTaskCanApproveReview: selectedTaskCanApproveReview.value,
+  selectedTaskCanReopen: selectedTaskCanReopen.value,
+  selectedTaskAssigneeLocked: selectedTaskAssigneeLocked.value,
+}))
+
+const taskInfoDialogHelpers = {
+  disabledScheduleModeDate,
+  canDeleteTaskComment,
+}
+
+const taskInfoDialogFormatters = {
+  formatTaskStatus,
+  formatDateText,
+  formatTaskConstraintType,
+  formatDependencyLagText,
+  formatRiskLevel,
+  formatRiskStatus,
+  requiresTaskConstraintDate,
+}
+
+const taskInfoDialogActions = {
+  saveTaskBasicInfo,
+  saveTaskProgress,
+  submitTaskCompletion,
+  approveTaskCompletion,
+  rejectTaskCompletion,
+  reopenTaskCompletion,
+  handleTaskConstraintTypeChange,
+  saveTaskDependency,
+  removeTaskDependency,
+  resetTaskCommentForm,
+  saveTaskComment,
+  startReplyComment,
+  removeTaskComment,
+}
+
+const pendingReviewDialogFormatters = {
+  formatTaskStatus,
+  formatPercentValue,
+  formatDateText,
+  formatHoursText,
+}
+
+const pendingReviewDialogHelpers = {
+  isPendingReviewActing,
+}
+
+const pendingReviewDialogActions = {
+  openPendingReviewTask,
+  rejectPendingReviewTask,
+  approvePendingReviewTask,
+}
+
+const milestoneDialogFormatters = {
+  formatMilestoneStatus,
+}
+
+const milestoneDialogHelpers = {
+  disabledScheduleModeDate,
+}
+
+const milestoneDialogActions = {
+  resetMilestoneForm,
+  saveMilestone,
+  populateMilestoneForm,
+  removeMilestone,
+}
+
+const riskDialogFormatters = {
+  formatRiskLevel,
+  formatRiskStatus,
+}
+
+const riskDialogActions = {
+  resetRiskForm,
+  saveRisk,
+  saveRiskStatus,
+  populateRiskForm,
+  startRiskStatusEdit,
+  removeRisk,
+}
+
+const qualityPlanDialogFormatters = {
+  formatQualityPlanStatus,
+  formatDateTimeText,
+}
+
+const qualityPlanDialogActions = {
+  resetQualityPlanForm,
+  saveQualityPlan,
+  editQualityPlan,
+  removeQualityPlan,
+}
+
+const qualityActivityDialogFormatters = {
+  formatQualityActivityType,
+  formatDateTimeText,
+}
+
+const qualityActivityDialogActions = {
+  resetQualityActivityForm,
+  saveQualityActivity,
+  editQualityActivity,
+  removeQualityActivity,
+}
+
+const qualityMetricDialogFormatters = {
+  formatDateText,
+  formatDateTimeText,
+}
+
+const qualityMetricDialogActions = {
+  resetQualityMetricForm,
+  saveQualityMetric,
+  editQualityMetric,
+  removeQualityMetric,
+}
+
+const testPlanDialogFormatters = {
+  formatTestPlanStatus,
+  formatDateTimeText,
+}
+
+const testPlanDialogActions = {
+  resetTestPlanForm,
+  saveTestPlan,
+  editTestPlan,
+  removeTestPlan,
+}
+
+const testCaseDialogFormatters = {
+  formatTestCaseStatus,
+  formatDateTimeText,
+}
+
+const testCaseDialogActions = {
+  resetTestCaseForm,
+  saveTestCase,
+  editTestCase,
+  removeTestCase,
+}
+
+const defectDialogFormatters = {
+  formatDefectStatus,
+  formatDefectSeverity,
+}
+
+const defectDialogActions = {
+  resetDefectForm,
+  saveDefect,
+  editDefect,
+  removeDefect,
+}
+
+const testReportDialogFormatters = {
+  formatDateTimeText,
+  formatPercentValue,
+}
+
+const testReportDialogHelpers = {
+  getTestReportSummary,
+}
+
+const testReportDialogActions = {
+  resetTestReportGenerateForm,
+  generateTestReport,
+  removeTestReport,
+}
+
+const riskMatrixDialogHelpers = {
+  getMatrixCellItems,
+  getMatrixCellClass,
+}
+
+const communicationMatrixDialogFormatters = {
+  formatCommunicationChannel,
+  formatDateTimeText,
+}
+
+const communicationMatrixDialogActions = {
+  resetCommunicationMatrixForm,
+  saveCommunicationMatrix,
+  editCommunicationMatrix,
+  removeCommunicationMatrix,
+}
 
 const taskRiskMap = computed(() => {
   const map = new Map()
@@ -5817,13 +7113,25 @@ async function saveTaskDependency() {
       predecessorTaskId: taskDependencyForm.predecessorTaskId,
       successorTaskId: row.taskId,
       dependencyType: taskDependencyForm.dependencyType,
+      lagDays: Number(taskDependencyForm.lagDays || 0),
     })
     taskDetail.value = normalizeTaskProgressRecord(await getProjectTaskDetail(projectId.value, row.taskId))
     resetTaskBasicForm(taskDetail.value)
     const dependencies = await getProjectTaskDependencies(projectId.value)
     projectTaskDependencies.value = Array.isArray(dependencies) ? dependencies : projectTaskDependencies.value
+    const dependencyResult = propagateTaskDependencySchedule(
+      [row.taskId, taskDependencyForm.predecessorTaskId],
+      { silent: true },
+    )
     resetTaskDependencyForm()
-    ElMessage.success('任务依赖已新增')
+    ElMessage.success(
+      dependencyResult.changed
+        ? '任务依赖已新增，相关后置任务已自动推排，请继续保存任务计划'
+        : '任务依赖已新增',
+    )
+    if (dependencyResult.blocked) {
+      ElMessage.warning('新依赖已建立，但部分任务受项目日期或父任务范围限制，未能完全推排到位')
+    }
   } catch (error) {
     ElMessage.error(error.message || '任务依赖保存失败')
   } finally {
@@ -5973,9 +7281,27 @@ async function saveTaskBasicInfo() {
     return
   }
 
+  let planningSnapshot = null
+  let taskPersisted = false
   try {
     taskDetailLoading.value = true
     const savedTaskId = String(row.taskId)
+    planningSnapshot = canManageProject.value ? captureTaskPlanningStateSnapshot() : null
+    const scheduleMetadata = buildTaskScheduleMetadata(
+      taskBasicForm.deadlineDate,
+      taskBasicForm.constraintType,
+      taskBasicForm.constraintDate,
+    )
+    if (canManageProject.value) {
+      row.deadlineDate = scheduleMetadata.deadlineDate ? formatDateText(scheduleMetadata.deadlineDate) : ''
+      row.constraintType = scheduleMetadata.constraintType || ''
+      row.constraintDate = scheduleMetadata.constraintDate ? formatDateText(scheduleMetadata.constraintDate) : ''
+      const constraintResult = applyTaskConstraintSchedule(row)
+      const seedTaskIds = new Set([savedTaskId, ...constraintResult.changedTaskIds])
+      propagateTaskDependencySchedule([...seedTaskIds], { silent: true })
+      ensureTaskConstraintScheduleConsistency()
+      ensureDependencyScheduleConsistency()
+    }
     const detail = normalizeTaskProgressRecord(await updateProjectTask(projectId.value, row.taskId, {
       parentTaskId: row.backendParentTaskId || null,
       wbsId: taskDetail.value?.wbsId || null,
@@ -5985,6 +7311,9 @@ async function saveTaskBasicInfo() {
       assigneeId: taskBasicForm.assigneeId || null,
       plannedStartDate: row.start ? `${row.start}T00:00:00` : null,
       plannedEndDate: row.finish ? `${row.finish}T00:00:00` : null,
+      deadlineDate: scheduleMetadata.deadlineDate,
+      constraintType: scheduleMetadata.constraintType,
+      constraintDate: scheduleMetadata.constraintDate,
       plannedHours: Number(row.duration || 0) > 0 ? Number(row.duration || 0) * 8 : null,
       priority: taskDetail.value?.priority || 'MEDIUM',
       taskType: isMilestoneRow(row) ? 'MILESTONE_TASK' : mapModeToTaskType(row.mode),
@@ -5993,6 +7322,7 @@ async function saveTaskBasicInfo() {
       sortOrder: Number(row.sortOrder || 0) || null,
       remark: row.mode || '',
     }))
+    taskPersisted = true
     await loadProjectTasksData()
     const refreshedRow = findRowByTaskId(savedTaskId)
     if (refreshedRow) {
@@ -6003,6 +7333,9 @@ async function saveTaskBasicInfo() {
     resetTaskProgressForm(detail)
     ElMessage.success('基础信息已保存')
   } catch (error) {
+    if (canManageProject.value && planningSnapshot && !taskPersisted) {
+      restoreTaskPlanningStateSnapshot(planningSnapshot)
+    }
     ElMessage.error(error.message || '基础信息保存失败')
   } finally {
     taskDetailLoading.value = false
@@ -6347,25 +7680,59 @@ const totalActualCost = computed(() => costActuals.value.reduce((sum, item) => s
 
 async function openWbsDialog() {
   wbsConfigSnapshot = cloneWbsConfig()
+  scheduleOptionsSnapshot = cloneScheduleOptions()
   wbsDialogVisible.value = true
 }
 
 function cancelWbsDialog() {
   applyWbsConfig(wbsConfigSnapshot || createDefaultWbsConfig())
+  applyScheduleOptions(scheduleOptionsSnapshot || createDefaultScheduleOptions())
+  wbsConfigSnapshot = null
+  scheduleOptionsSnapshot = null
   refreshWbsCodes()
   wbsDialogVisible.value = false
 }
 
 async function saveWbsConfig() {
-  if (!requireProjectContentEditPermission('保存 WBS 编码规则')) return
+  if (!requireProjectContentEditPermission('保存 WBS / 排程规则')) return
   try {
     loading.value = true
+    const previousScheduleOptionsSignature = getScheduleOptionsSignature(
+      scheduleOptionsSnapshot || createDefaultScheduleOptions(),
+    )
     await persistProjectEditorPreferenceData()
+    const scheduleChanged = previousScheduleOptionsSignature !== getScheduleOptionsSignature(scheduleOptions)
+    const scheduleAdjusted = scheduleChanged ? applyScheduleModeToProjectAndTasks() : false
+    const rescheduleResult = scheduleChanged && canManageProject.value
+      ? rescheduleProjectTasks({ silent: true })
+      : {
+        changed: false,
+        blocked: false,
+        iterations: 0,
+        changedTaskIds: [],
+        constraintViolations: [],
+        dependencyViolations: [],
+      }
+    wbsConfigSnapshot = null
+    scheduleOptionsSnapshot = null
     refreshWbsCodes()
     wbsDialogVisible.value = false
-    ElMessage.success('WBS 编码规则已保存')
+    ElMessage.success(
+      scheduleChanged && (scheduleAdjusted || rescheduleResult.changed)
+        ? 'WBS / 排程规则已保存，任务工期和排程结果已按新规则重算，请继续保存任务计划'
+        : 'WBS / 排程规则已保存',
+    )
+    if (rescheduleResult.constraintViolations.length || rescheduleResult.dependencyViolations.length) {
+      const firstMessage = rescheduleResult.constraintViolations[0]?.message
+        || (rescheduleResult.dependencyViolations[0]
+          ? `依赖未完全满足：${rescheduleResult.dependencyViolations[0].predecessorName} -> ${rescheduleResult.dependencyViolations[0].successorName}`
+          : '')
+      ElMessage.warning(firstMessage || '排程规则已切换，但仍存在未解决的排程冲突')
+    } else if (rescheduleResult.blocked) {
+      ElMessage.warning('排程规则已切换，但部分任务受项目日期或父任务范围限制，未能完全推排到位')
+    }
   } catch (error) {
-    ElMessage.error(error.message || 'WBS 编码规则保存失败')
+    ElMessage.error(error.message || 'WBS / 排程规则保存失败')
   } finally {
     loading.value = false
   }
@@ -8974,6 +10341,7 @@ function handleRibbonAction(actionKey) {
     case 'calendar':
     case 'alerts': openScheduleDialog(); break
     case 'pending-review': openPendingReviewDialog(); break
+    case 'project-reschedule': rerunProjectSchedule(); break
     case 'project-task-overview':
       taskMineOnly.value = false
       break
@@ -9032,10 +10400,11 @@ function handleRibbonAction(actionKey) {
 }
 
 const timelineRange = computed(() => {
-  const start = projectForm.startDate || todayString
-  const baseEnd = projectForm.endDate && projectForm.endDate > start
-    ? projectForm.endDate
-    : formatDateToValue(addDays(new Date(`${start}T00:00:00`), 27))
+  const start = normalizeDateValueToScheduleMode(projectForm.startDate || todayString) || todayString
+  const projectEnd = normalizeDateValueToScheduleMode(projectForm.endDate)
+  const baseEnd = projectEnd && projectEnd > start
+    ? projectEnd
+    : formatDateToValue(addDays(parseDateValue(start), 27))
   return { start, end: baseEnd }
 })
 
@@ -9056,6 +10425,8 @@ const timelineWeeks = computed(() => {
         key: current.toISOString(),
         date: formatDateToValue(current),
         label: DAY_NAMES[current.getDay()],
+        isWeekend: isWeekendDate(current),
+        isHoliday: isConfiguredHolidayDate(current),
         isBeyondEnd: current > endDate,
       })
     }
@@ -9929,7 +11300,7 @@ onBeforeUnmount(() => {
                 v-for="day in timelineDays"
                 :key="`${row.localId}-${day.key}`"
                 class="timeline-cell"
-                :class="{ weekend: [0, 6].includes(new Date(`${day.date}T00:00:00`).getDay()), disabled: day.isBeyondEnd }"
+                :class="{ weekend: day.isWeekend, holiday: day.isHoliday && !day.isWeekend, disabled: day.isBeyondEnd }"
               />
               <div
                 v-if="getTaskBarStyle(row)"
@@ -10200,104 +11571,28 @@ onBeforeUnmount(() => {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="wbsDialogVisible" title="WBS" width="760px">
-      <div class="info-section">
-        <h4>WBS 编码规则</h4>
-        <el-form label-width="88px" class="scope-form-grid">
-          <el-form-item label="前缀">
-            <el-input v-model="wbsConfig.prefix" :disabled="!canEditProjectContent" placeholder="例如 WBS / P / PRJ" />
-          </el-form-item>
-          <el-form-item label="分隔符">
-            <el-input v-model="wbsConfig.separator" :disabled="!canEditProjectContent" maxlength="3" placeholder="例如 ." />
-          </el-form-item>
-          <el-form-item label="层级位数">
-            <el-input-number v-model="wbsConfig.paddingWidth" :disabled="!canEditProjectContent" :min="1" :max="6" style="width: 100%" />
-          </el-form-item>
-          <el-form-item label="示例" class="scope-form-span">
-            <el-input :model-value="formatWbsCode([1, 2, 3]) || '1.2.3'" disabled />
-          </el-form-item>
-        </el-form>
-      </div>
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>当前任务 WBS</h4>
-          <el-button :disabled="!canEditProjectContent" @click="resequenceWbsCodes">重排 WBS 编码</el-button>
-        </div>
-        <div v-if="wbsTreeNodes.length" class="wbs-tree">
-          <div v-for="node in wbsTreeNodes" :key="`wbs-tree-root-${node.localId}`" class="wbs-tree-node">
-            <div class="wbs-tree-row" :style="{ paddingLeft: '0px' }">
-              <button
-                v-if="node.children.length"
-                type="button"
-                class="wbs-tree-toggle"
-                @click="toggleWbsTreeNode(node.localId)"
-              >
-                {{ isWbsTreeExpanded(node.localId) ? '-' : '+' }}
-              </button>
-              <span v-else class="wbs-tree-spacer" />
-              <strong>{{ node.wbsCode || '-' }}</strong>
-              <span>{{ node.name || '未命名任务' }}</span>
-            </div>
-            <template v-if="node.children.length && isWbsTreeExpanded(node.localId)">
-              <div v-for="child in node.children" :key="`wbs-tree-child-${child.localId}`" class="wbs-tree-node">
-                <div class="wbs-tree-row" :style="{ paddingLeft: `${((child.outlineLevel || 0) + 1) * 16}px` }">
-                  <button
-                    v-if="child.children.length"
-                    type="button"
-                    class="wbs-tree-toggle"
-                    @click="toggleWbsTreeNode(child.localId)"
-                  >
-                    {{ isWbsTreeExpanded(child.localId) ? '-' : '+' }}
-                  </button>
-                  <span v-else class="wbs-tree-spacer" />
-                  <strong>{{ child.wbsCode || '-' }}</strong>
-                  <span>{{ child.name || '未命名任务' }}</span>
-                </div>
-                <template v-if="child.children.length && isWbsTreeExpanded(child.localId)">
-                  <div v-for="grandChild in child.children" :key="`wbs-tree-grand-${grandChild.localId}`" class="wbs-tree-node">
-                    <div class="wbs-tree-row" :style="{ paddingLeft: `${((grandChild.outlineLevel || 0) + 1) * 16}px` }">
-                      <button
-                        v-if="grandChild.children.length"
-                        type="button"
-                        class="wbs-tree-toggle"
-                        @click="toggleWbsTreeNode(grandChild.localId)"
-                      >
-                        {{ isWbsTreeExpanded(grandChild.localId) ? '-' : '+' }}
-                      </button>
-                      <span v-else class="wbs-tree-spacer" />
-                      <strong>{{ grandChild.wbsCode || '-' }}</strong>
-                      <span>{{ grandChild.name || '未命名任务' }}</span>
-                    </div>
-                    <template v-if="grandChild.children.length && isWbsTreeExpanded(grandChild.localId)">
-                      <div v-for="deepChild in grandChild.children" :key="`wbs-tree-deep-${deepChild.localId}`" class="wbs-tree-node">
-                        <div class="wbs-tree-row" :style="{ paddingLeft: `${((deepChild.outlineLevel || 0) + 1) * 16}px` }">
-                          <button
-                            v-if="deepChild.children.length"
-                            type="button"
-                            class="wbs-tree-toggle"
-                            @click="toggleWbsTreeNode(deepChild.localId)"
-                          >
-                            {{ isWbsTreeExpanded(deepChild.localId) ? '-' : '+' }}
-                          </button>
-                          <span v-else class="wbs-tree-spacer" />
-                          <strong>{{ deepChild.wbsCode || '-' }}</strong>
-                          <span>{{ deepChild.name || '未命名任务' }}</span>
-                        </div>
-                      </div>
-                    </template>
-                  </div>
-                </template>
-              </div>
-            </template>
-          </div>
-        </div>
-        <el-empty v-else description="暂无可生成 WBS 的任务" />
-      </div>
-      <template #footer>
-        <el-button @click="cancelWbsDialog">{{ canEditProjectContent ? '取消' : '关闭' }}</el-button>
-        <el-button v-if="canEditProjectContent" type="primary" :loading="loading" @click="saveWbsConfig">保存规则</el-button>
-      </template>
-    </el-dialog>
+    <ProjectWbsDialog
+      :visible="wbsDialogVisible"
+      :can-edit-project-content="canEditProjectContent"
+      :can-edit-task-plan="canEditTaskPlan"
+      :loading="loading"
+      :wbs-config="wbsConfig"
+      :schedule-options="scheduleOptions"
+      :schedule-mode-options="scheduleModeOptions"
+      :current-schedule-mode-label="currentScheduleModeLabel"
+      :current-schedule-mode-description="currentScheduleModeDescription"
+      :schedule-holiday-summary="scheduleHolidaySummary"
+      :disabled-holiday-picker-date="disabledHolidayPickerDate"
+      :wbs-tree-nodes="wbsTreeNodes"
+      :format-wbs-code="formatWbsCode"
+      :is-wbs-tree-expanded="isWbsTreeExpanded"
+      @update:visible="wbsDialogVisible = $event"
+      @cancel="cancelWbsDialog"
+      @save="saveWbsConfig"
+      @rerun-project-schedule="rerunProjectSchedule"
+      @resequence-wbs-codes="resequenceWbsCodes"
+      @toggle-wbs-tree-node="toggleWbsTreeNode"
+    />
 
     <el-dialog v-model="projectStatusDialogVisible" title="项目状态流转" width="420px">
       <el-form label-width="88px">
@@ -10349,515 +11644,121 @@ onBeforeUnmount(() => {
       </div>
     </el-dialog>
 
-    <el-dialog v-model="qualityPlanDialogVisible" title="质量计划" width="980px">
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>{{ editingQualityPlanId ? '编辑质量计划' : '新增质量计划' }}</h4>
-          <div class="dialog-summary-text">当前共 {{ qualityPlans.length }} 条质量计划</div>
-        </div>
-        <el-form label-width="88px" class="scope-form-grid">
-          <el-form-item label="计划标题">
-            <el-input v-model="qualityPlanForm.title" placeholder="例如 版本交付质量控制计划" />
-          </el-form-item>
-          <el-form-item label="负责人">
-            <el-select v-model="qualityPlanForm.ownerId" clearable filterable placeholder="选择负责人">
-              <el-option v-for="option in taskAssigneeOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="状态">
-            <el-select v-model="qualityPlanForm.status" style="width: 100%">
-              <el-option v-for="option in qualityPlanStatusOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="质量标准" class="scope-form-span">
-            <el-input v-model="qualityPlanForm.qualityStandard" type="textarea" :rows="2" placeholder="记录执行标准、检查口径、编码规范或交付标准" />
-          </el-form-item>
-          <el-form-item label="验收规则" class="scope-form-span">
-            <el-input v-model="qualityPlanForm.acceptanceRule" type="textarea" :rows="2" placeholder="记录验收方式、准入准出条件或评审门禁" />
-          </el-form-item>
-        </el-form>
-        <div class="dialog-actions-inline">
-          <el-button @click="resetQualityPlanForm()">重置表单</el-button>
-          <el-button v-if="canEditProjectContent" type="primary" :loading="qualityLoading" @click="saveQualityPlan">
-            {{ editingQualityPlanId ? '保存修改' : '新增计划' }}
-          </el-button>
-        </div>
-      </div>
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>计划列表</h4>
-          <div class="dialog-summary-text">按状态和负责人维护项目质量基线</div>
-        </div>
-        <div v-if="qualityPlans.length" class="simple-list">
-          <div v-for="item in qualityPlans" :key="`quality-plan-${item.id}`" class="simple-list-item">
-            <strong>{{ item.title || `质量计划${item.id}` }}</strong>
-            <span>负责人: {{ item.ownerName || '未指定' }} | 状态: {{ formatQualityPlanStatus(item.status) }}</span>
-            <span>质量标准: {{ item.qualityStandard || '暂无' }}</span>
-            <span>验收规则: {{ item.acceptanceRule || '暂无' }}</span>
-            <span>更新时间: {{ formatDateTimeText(item.updatedAt || item.createdAt) }}</span>
-            <div v-if="canEditProjectContent" class="baseline-actions">
-              <el-button size="small" @click="editQualityPlan(item)">编辑</el-button>
-              <el-button size="small" type="danger" plain @click="removeQualityPlan(item)">删除</el-button>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无质量计划" />
-      </div>
-    </el-dialog>
+    <ProjectQualityPlanDialog
+      :visible="qualityPlanDialogVisible"
+      :can-edit-project-content="canEditProjectContent"
+      :editing-quality-plan-id="editingQualityPlanId"
+      :quality-loading="qualityLoading"
+      :quality-plans="qualityPlans"
+      :quality-plan-form="qualityPlanForm"
+      :quality-plan-status-options="qualityPlanStatusOptions"
+      :task-assignee-options="taskAssigneeOptions"
+      :formatters="qualityPlanDialogFormatters"
+      :actions="qualityPlanDialogActions"
+      @update:visible="qualityPlanDialogVisible = $event"
+    />
 
-    <el-dialog v-model="qualityActivityDialogVisible" title="质量活动" width="980px">
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>{{ editingQualityActivityId ? '编辑质量活动' : '新增质量活动' }}</h4>
-          <div class="dialog-summary-text">维护评审、测试、审计等执行动作</div>
-        </div>
-        <el-form label-width="88px" class="scope-form-grid">
-          <el-form-item label="关联计划">
-            <el-select v-model="qualityActivityForm.qualityPlanId" clearable filterable placeholder="可选，挂到一条质量计划下">
-              <el-option v-for="option in qualityPlanOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="活动名称">
-            <el-input v-model="qualityActivityForm.activityName" placeholder="例如 需求评审、提测冒烟、上线审计" />
-          </el-form-item>
-          <el-form-item label="活动类型">
-            <el-select v-model="qualityActivityForm.activityType" style="width: 100%">
-              <el-option v-for="option in qualityActivityTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="负责人">
-            <el-select v-model="qualityActivityForm.ownerId" clearable filterable placeholder="选择负责人">
-              <el-option v-for="option in taskAssigneeOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="计划时间">
-            <el-date-picker
-              v-model="qualityActivityForm.plannedDate"
-              type="datetime"
-              value-format="YYYY-MM-DDTHH:mm:ss"
-              format="YYYY-MM-DD HH:mm:ss"
-              style="width: 100%"
-            />
-          </el-form-item>
-          <el-form-item label="实际时间">
-            <el-date-picker
-              v-model="qualityActivityForm.actualDate"
-              type="datetime"
-              value-format="YYYY-MM-DDTHH:mm:ss"
-              format="YYYY-MM-DD HH:mm:ss"
-              style="width: 100%"
-            />
-          </el-form-item>
-          <el-form-item label="执行结果" class="scope-form-span">
-            <el-input v-model="qualityActivityForm.result" type="textarea" :rows="2" placeholder="记录发现问题、结论、整改意见或通过情况" />
-          </el-form-item>
-        </el-form>
-        <div class="dialog-actions-inline">
-          <el-button @click="resetQualityActivityForm()">重置表单</el-button>
-          <el-button v-if="canEditProjectContent" type="primary" :loading="qualityLoading" @click="saveQualityActivity">
-            {{ editingQualityActivityId ? '保存修改' : '新增活动' }}
-          </el-button>
-        </div>
-      </div>
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>活动列表</h4>
-          <div class="dialog-summary-text">计划与实际执行时间可用于后续测试/审计扩展</div>
-        </div>
-        <div v-if="qualityActivities.length" class="simple-list">
-          <div v-for="item in qualityActivities" :key="`quality-activity-${item.id}`" class="simple-list-item">
-            <strong>{{ item.activityName || `质量活动${item.id}` }}</strong>
-            <span>类型: {{ formatQualityActivityType(item.activityType) }} | 计划: {{ item.qualityPlanTitle || '未关联计划' }}</span>
-            <span>负责人: {{ item.ownerName || '未指定' }} | 计划时间: {{ formatDateTimeText(item.plannedDate) }}</span>
-            <span>实际时间: {{ formatDateTimeText(item.actualDate) }}</span>
-            <span>结果: {{ item.result || '暂无结果' }}</span>
-            <div v-if="canEditProjectContent" class="baseline-actions">
-              <el-button size="small" @click="editQualityActivity(item)">编辑</el-button>
-              <el-button size="small" type="danger" plain @click="removeQualityActivity(item)">删除</el-button>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无质量活动" />
-      </div>
-    </el-dialog>
+    <ProjectQualityActivityDialog
+      :visible="qualityActivityDialogVisible"
+      :can-edit-project-content="canEditProjectContent"
+      :editing-quality-activity-id="editingQualityActivityId"
+      :quality-loading="qualityLoading"
+      :quality-activities="qualityActivities"
+      :quality-activity-form="qualityActivityForm"
+      :quality-plan-options="qualityPlanOptions"
+      :quality-activity-type-options="qualityActivityTypeOptions"
+      :task-assignee-options="taskAssigneeOptions"
+      :formatters="qualityActivityDialogFormatters"
+      :actions="qualityActivityDialogActions"
+      @update:visible="qualityActivityDialogVisible = $event"
+    />
 
-    <el-dialog v-model="qualityMetricDialogVisible" title="质量指标" width="980px">
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>{{ editingQualityMetricId ? '编辑质量指标' : '新增质量指标' }}</h4>
-          <div class="dialog-summary-text">维护缺陷密度、通过率、返工率等度量</div>
-        </div>
-        <el-form label-width="88px" class="scope-form-grid">
-          <el-form-item label="指标名称">
-            <el-input v-model="qualityMetricForm.metricName" placeholder="例如 用例通过率、缺陷密度、返工率" />
-          </el-form-item>
-          <el-form-item label="指标值">
-            <el-input v-model="qualityMetricForm.metricValue" type="number" placeholder="0.00" />
-          </el-form-item>
-          <el-form-item label="单位">
-            <el-input v-model="qualityMetricForm.metricUnit" placeholder="例如 % / 个/KLOC / 次" />
-          </el-form-item>
-          <el-form-item label="统计日期">
-            <el-date-picker v-model="qualityMetricForm.statisticDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
-          </el-form-item>
-        </el-form>
-        <div class="dialog-actions-inline">
-          <el-button @click="resetQualityMetricForm()">重置表单</el-button>
-          <el-button v-if="canEditProjectContent" type="primary" :loading="qualityLoading" @click="saveQualityMetric">
-            {{ editingQualityMetricId ? '保存修改' : '新增指标' }}
-          </el-button>
-        </div>
-      </div>
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>指标列表</h4>
-          <div class="dialog-summary-text">可逐步沉淀质量趋势，为测试管理模块打基础</div>
-        </div>
-        <div v-if="qualityMetrics.length" class="simple-list">
-          <div v-for="item in qualityMetrics" :key="`quality-metric-${item.id}`" class="simple-list-item">
-            <strong>{{ item.metricName || `质量指标${item.id}` }}</strong>
-            <span>指标值: {{ item.metricValue ?? '-' }} {{ item.metricUnit || '' }}</span>
-            <span>统计日期: {{ formatDateText(item.statisticDate) }} | 创建时间: {{ formatDateTimeText(item.createdAt) }}</span>
-            <div v-if="canEditProjectContent" class="baseline-actions">
-              <el-button size="small" @click="editQualityMetric(item)">编辑</el-button>
-              <el-button size="small" type="danger" plain @click="removeQualityMetric(item)">删除</el-button>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无质量指标" />
-      </div>
-    </el-dialog>
+    <ProjectQualityMetricDialog
+      :visible="qualityMetricDialogVisible"
+      :can-edit-project-content="canEditProjectContent"
+      :editing-quality-metric-id="editingQualityMetricId"
+      :quality-loading="qualityLoading"
+      :quality-metrics="qualityMetrics"
+      :quality-metric-form="qualityMetricForm"
+      :formatters="qualityMetricDialogFormatters"
+      :actions="qualityMetricDialogActions"
+      @update:visible="qualityMetricDialogVisible = $event"
+    />
 
-    <el-dialog v-model="testPlanDialogVisible" title="测试计划" width="1080px">
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>{{ editingTestPlanId ? '编辑测试计划' : '新增测试计划' }}</h4>
-          <div class="dialog-summary-text">当前共 {{ testPlans.length }} 条测试计划</div>
-        </div>
-        <el-form label-width="88px" class="scope-form-grid">
-          <el-form-item label="计划标题">
-            <el-input v-model="testPlanForm.title" placeholder="例如 回归测试计划、UAT 测试计划" />
-          </el-form-item>
-          <el-form-item label="版本号">
-            <el-input v-model="testPlanForm.versionNo" placeholder="例如 V1.0.3" />
-          </el-form-item>
-          <el-form-item label="负责人">
-            <el-select v-model="testPlanForm.ownerId" clearable filterable placeholder="选择负责人">
-              <el-option v-for="option in taskAssigneeOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="状态">
-            <el-select v-model="testPlanForm.status" style="width: 100%">
-              <el-option v-for="option in testPlanStatusOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="测试范围" class="scope-form-span">
-            <el-input v-model="testPlanForm.scopeDesc" type="textarea" :rows="3" placeholder="说明本次测试覆盖的需求、场景、系统边界和限制条件" />
-          </el-form-item>
-        </el-form>
-        <div class="dialog-actions-inline">
-          <el-button @click="resetTestPlanForm()">重置表单</el-button>
-          <el-button v-if="canEditProjectContent" type="primary" :loading="testingLoading" @click="saveTestPlan">
-            {{ editingTestPlanId ? '保存修改' : '新增计划' }}
-          </el-button>
-        </div>
-      </div>
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>计划列表</h4>
-          <div class="dialog-summary-text">用于组织回归、冒烟、UAT 等不同阶段测试</div>
-        </div>
-        <div v-if="testPlans.length" class="simple-list">
-          <div v-for="item in testPlans" :key="`test-plan-${item.id}`" class="simple-list-item">
-            <strong>{{ item.title || `测试计划${item.id}` }}</strong>
-            <span>版本: {{ item.versionNo || '-' }} | 负责人: {{ item.ownerName || '未指定' }} | 状态: {{ formatTestPlanStatus(item.status) }}</span>
-            <span>{{ item.scopeDesc || '暂无测试范围说明' }}</span>
-            <span>更新时间: {{ formatDateTimeText(item.updatedAt || item.createdAt) }}</span>
-            <div v-if="canEditProjectContent" class="baseline-actions">
-              <el-button size="small" @click="editTestPlan(item)">编辑</el-button>
-              <el-button size="small" type="danger" plain @click="removeTestPlan(item)">删除</el-button>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无测试计划" />
-      </div>
-    </el-dialog>
+    <ProjectTestPlanDialog
+      :visible="testPlanDialogVisible"
+      :can-edit-project-content="canEditProjectContent"
+      :editing-test-plan-id="editingTestPlanId"
+      :testing-loading="testingLoading"
+      :test-plans="testPlans"
+      :test-plan-form="testPlanForm"
+      :task-assignee-options="taskAssigneeOptions"
+      :test-plan-status-options="testPlanStatusOptions"
+      :formatters="testPlanDialogFormatters"
+      :actions="testPlanDialogActions"
+      @update:visible="testPlanDialogVisible = $event"
+    />
 
-    <el-dialog v-model="testCaseDialogVisible" title="测试用例" width="1080px">
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>{{ editingTestCaseId ? '编辑测试用例' : '新增测试用例' }}</h4>
-          <div class="dialog-summary-text">覆盖需求、任务和执行结果的闭环记录</div>
-        </div>
-        <el-form label-width="88px" class="scope-form-grid">
-          <el-form-item label="所属计划">
-            <el-select v-model="testCaseForm.testPlanId" clearable filterable placeholder="可选，归属到某个测试计划">
-              <el-option v-for="option in testPlanOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="关联需求">
-            <el-select v-model="testCaseForm.requirementId" clearable filterable placeholder="可选，关联需求">
-              <el-option v-for="option in requirementOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="关联任务">
-            <el-select v-model="testCaseForm.taskId" clearable filterable placeholder="可选，关联任务">
-              <el-option v-for="option in riskTaskOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="测试人">
-            <el-select v-model="testCaseForm.testerId" clearable filterable placeholder="选择测试人">
-              <el-option v-for="option in taskAssigneeOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="用例标题" class="scope-form-span">
-            <el-input v-model="testCaseForm.title" placeholder="例如 正常登录成功、余额不足下单失败" />
-          </el-form-item>
-          <el-form-item label="前置条件" class="scope-form-span">
-            <el-input v-model="testCaseForm.precondition" type="textarea" :rows="2" placeholder="记录环境、账号、数据准备或前置开关" />
-          </el-form-item>
-          <el-form-item label="执行步骤" class="scope-form-span">
-            <el-input v-model="testCaseForm.steps" type="textarea" :rows="3" placeholder="建议按 1.2.3. 的形式描述操作步骤" />
-          </el-form-item>
-          <el-form-item label="预期结果" class="scope-form-span">
-            <el-input v-model="testCaseForm.expectedResult" type="textarea" :rows="2" placeholder="记录系统应有表现和验收口径" />
-          </el-form-item>
-          <el-form-item label="实际结果" class="scope-form-span">
-            <el-input v-model="testCaseForm.actualResult" type="textarea" :rows="2" placeholder="执行后记录实际结果；未执行可留空" />
-          </el-form-item>
-          <el-form-item label="执行状态">
-            <el-select v-model="testCaseForm.executionStatus" style="width: 100%">
-              <el-option v-for="option in testCaseStatusOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="执行时间">
-            <el-date-picker
-              v-model="testCaseForm.executedAt"
-              type="datetime"
-              value-format="YYYY-MM-DDTHH:mm:ss"
-              format="YYYY-MM-DD HH:mm:ss"
-              style="width: 100%"
-            />
-          </el-form-item>
-        </el-form>
-        <div class="dialog-actions-inline">
-          <el-button @click="resetTestCaseForm()">重置表单</el-button>
-          <el-button v-if="canEditProjectContent" type="primary" :loading="testingLoading" @click="saveTestCase">
-            {{ editingTestCaseId ? '保存修改' : '新增用例' }}
-          </el-button>
-        </div>
-      </div>
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>用例列表</h4>
-          <div class="dialog-summary-text">用例执行失败后可直接在缺陷页签登记问题</div>
-        </div>
-        <div v-if="testCases.length" class="simple-list">
-          <div v-for="item in testCases" :key="`test-case-${item.id}`" class="simple-list-item">
-            <strong>{{ item.caseCode || '-' }} | {{ item.title || `测试用例${item.id}` }}</strong>
-            <span>计划: {{ item.testPlanTitle || '未归属计划' }} | 状态: {{ formatTestCaseStatus(item.executionStatus) }} | 测试人: {{ item.testerName || '未指定' }}</span>
-            <span>需求: {{ item.requirementTitle || '未关联需求' }} | 任务: {{ item.taskName || '未关联任务' }}</span>
-            <span>预期: {{ item.expectedResult || '暂无预期结果' }}</span>
-            <span>实际: {{ item.actualResult || '暂无实际结果' }}</span>
-            <span>执行时间: {{ formatDateTimeText(item.executedAt) }}</span>
-            <div v-if="canEditProjectContent" class="baseline-actions">
-              <el-button size="small" @click="editTestCase(item)">编辑</el-button>
-              <el-button size="small" type="danger" plain @click="removeTestCase(item)">删除</el-button>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无测试用例" />
-      </div>
-    </el-dialog>
+    <ProjectTestCaseDialog
+      :visible="testCaseDialogVisible"
+      :can-edit-project-content="canEditProjectContent"
+      :editing-test-case-id="editingTestCaseId"
+      :testing-loading="testingLoading"
+      :test-cases="testCases"
+      :test-case-form="testCaseForm"
+      :test-plan-options="testPlanOptions"
+      :requirement-options="requirementOptions"
+      :risk-task-options="riskTaskOptions"
+      :task-assignee-options="taskAssigneeOptions"
+      :test-case-status-options="testCaseStatusOptions"
+      :formatters="testCaseDialogFormatters"
+      :actions="testCaseDialogActions"
+      @update:visible="testCaseDialogVisible = $event"
+    />
 
-    <el-dialog v-model="defectDialogVisible" title="缺陷管理" width="1080px">
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>{{ editingDefectId ? '编辑缺陷' : '新增缺陷' }}</h4>
-          <div class="dialog-summary-text">用于记录发现、分派、修复和关闭过程</div>
-        </div>
-        <el-form label-width="88px" class="scope-form-grid">
-          <el-form-item label="来源用例">
-            <el-select v-model="defectForm.testCaseId" clearable filterable placeholder="可选，选择缺陷来源用例">
-              <el-option v-for="option in testCaseOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="关联需求">
-            <el-select v-model="defectForm.requirementId" clearable filterable placeholder="可选，关联需求">
-              <el-option v-for="option in requirementOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="关联任务">
-            <el-select v-model="defectForm.taskId" clearable filterable placeholder="可选，关联任务">
-              <el-option v-for="option in riskTaskOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="报告人">
-            <el-select v-model="defectForm.reporterId" clearable filterable placeholder="留空则默认为当前用户">
-              <el-option v-for="option in taskAssigneeOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="处理人">
-            <el-select v-model="defectForm.assigneeId" clearable filterable placeholder="选择处理人">
-              <el-option v-for="option in taskAssigneeOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="缺陷标题" class="scope-form-span">
-            <el-input v-model="defectForm.title" placeholder="例如 提交订单后页面白屏、审批流节点丢失" />
-          </el-form-item>
-          <el-form-item label="严重级别">
-            <el-select v-model="defectForm.severity" style="width: 100%">
-              <el-option v-for="option in defectSeverityOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="优先级">
-            <el-select v-model="defectForm.priority" style="width: 100%">
-              <el-option v-for="option in defectPriorityOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="状态">
-            <el-select v-model="defectForm.status" style="width: 100%">
-              <el-option v-for="option in defectStatusOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="缺陷描述" class="scope-form-span">
-            <el-input v-model="defectForm.description" type="textarea" :rows="3" placeholder="记录复现步骤、影响范围、环境信息和出现频率" />
-          </el-form-item>
-          <el-form-item label="处理结论" class="scope-form-span">
-            <el-input v-model="defectForm.resolution" type="textarea" :rows="2" placeholder="记录修复方案、回归结果或关闭说明" />
-          </el-form-item>
-        </el-form>
-        <div class="dialog-actions-inline">
-          <el-button @click="resetDefectForm()">重置表单</el-button>
-          <el-button v-if="canEditProjectContent" type="primary" :loading="testingLoading" @click="saveDefect">
-            {{ editingDefectId ? '保存修改' : '新增缺陷' }}
-          </el-button>
-        </div>
-      </div>
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>缺陷列表</h4>
-          <div class="dialog-summary-text">优先级和严重级别分开维护，便于排期和评估影响</div>
-        </div>
-        <div v-if="defectList.length" class="simple-list">
-          <div v-for="item in defectList" :key="`defect-${item.id}`" class="simple-list-item">
-            <strong>{{ item.defectCode || '-' }} | {{ item.title || `缺陷${item.id}` }}</strong>
-            <span>状态: {{ formatDefectStatus(item.status) }} | 严重级别: {{ formatDefectSeverity(item.severity) }} | 优先级: {{ item.priority || '-' }}</span>
-            <span>来源用例: {{ item.testCaseTitle || '未关联用例' }} | 需求: {{ item.requirementTitle || '未关联需求' }}</span>
-            <span>报告人: {{ item.reporterName || '未指定' }} | 处理人: {{ item.assigneeName || '未指定' }}</span>
-            <span>描述: {{ item.description || '暂无描述' }}</span>
-            <span>结论: {{ item.resolution || '暂无处理结论' }}</span>
-            <div v-if="canEditProjectContent" class="baseline-actions">
-              <el-button size="small" @click="editDefect(item)">编辑</el-button>
-              <el-button size="small" type="danger" plain @click="removeDefect(item)">删除</el-button>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无缺陷记录" />
-      </div>
-    </el-dialog>
+    <ProjectDefectDialog
+      :visible="defectDialogVisible"
+      :can-edit-project-content="canEditProjectContent"
+      :editing-defect-id="editingDefectId"
+      :testing-loading="testingLoading"
+      :defect-list="defectList"
+      :defect-form="defectForm"
+      :test-case-options="testCaseOptions"
+      :requirement-options="requirementOptions"
+      :risk-task-options="riskTaskOptions"
+      :task-assignee-options="taskAssigneeOptions"
+      :defect-severity-options="defectSeverityOptions"
+      :defect-priority-options="defectPriorityOptions"
+      :defect-status-options="defectStatusOptions"
+      :formatters="defectDialogFormatters"
+      :actions="defectDialogActions"
+      @update:visible="defectDialogVisible = $event"
+    />
 
-    <el-dialog v-model="testReportDialogVisible" title="测试报告" width="1080px">
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>生成测试报告</h4>
-          <div class="dialog-summary-text">按当前测试计划、用例和缺陷数据生成汇总快照</div>
-        </div>
-        <el-form label-width="88px" class="scope-form-grid">
-          <el-form-item label="报告类型">
-            <el-input v-model="testReportGenerateForm.type" disabled />
-          </el-form-item>
-          <el-form-item label="开始日期">
-            <el-date-picker v-model="testReportGenerateForm.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
-          </el-form-item>
-          <el-form-item label="结束日期">
-            <el-date-picker v-model="testReportGenerateForm.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
-          </el-form-item>
-        </el-form>
-        <div class="dialog-actions-inline">
-          <el-button @click="resetTestReportGenerateForm">重置日期</el-button>
-          <el-button v-if="canEditProjectContent" type="primary" :loading="testingLoading" @click="generateTestReport">生成报告</el-button>
-        </div>
-      </div>
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>报告列表</h4>
-          <div class="dialog-summary-text">保留每次生成时的测试快照，便于阶段回顾</div>
-        </div>
-        <div v-if="testReportList.length" class="simple-list">
-          <div v-for="item in testReportList" :key="`test-report-${item.id}`" class="simple-list-item">
-            <strong>{{ item.title || `测试报告${item.id}` }}</strong>
-            <span>生成时间: {{ formatDateTimeText(item.generatedAt) }} | 生成人: {{ item.generatedByName || item.generatedBy || '-' }}</span>
-            <span>
-              用例总数: {{ getTestReportSummary(item)?.caseCount ?? 0 }} |
-              已执行: {{ getTestReportSummary(item)?.executedCaseCount ?? 0 }} |
-              通过率: {{ formatPercentValue(getTestReportSummary(item)?.passRate ?? 0) }}
-            </span>
-            <span>
-              测试计划: {{ getTestReportSummary(item)?.planCount ?? 0 }} |
-              开放缺陷: {{ getTestReportSummary(item)?.openDefectCount ?? 0 }}
-            </span>
-            <div v-if="canEditProjectContent" class="baseline-actions">
-              <el-button size="small" type="danger" plain @click="removeTestReport(item)">删除</el-button>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无测试报告" />
-      </div>
-    </el-dialog>
+    <ProjectTestReportDialog
+      :visible="testReportDialogVisible"
+      :can-edit-project-content="canEditProjectContent"
+      :testing-loading="testingLoading"
+      :test-report-list="testReportList"
+      :test-report-generate-form="testReportGenerateForm"
+      :formatters="testReportDialogFormatters"
+      :helpers="testReportDialogHelpers"
+      :actions="testReportDialogActions"
+      @update:visible="testReportDialogVisible = $event"
+    />
 
-    <el-dialog v-model="communicationMatrixDialogVisible" title="沟通安排" width="1080px">
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>{{ editingCommunicationMatrixId ? '编辑沟通安排' : '新增沟通安排' }}</h4>
-          <div class="dialog-summary-text">当前共 {{ communicationMatrixList.length }} 条沟通规则</div>
-        </div>
-        <el-form label-width="88px" class="scope-form-grid">
-          <el-form-item label="发送方角色">
-            <el-input v-model="communicationMatrixForm.senderRole" placeholder="例如 项目经理、实施负责人、客户代表" />
-          </el-form-item>
-          <el-form-item label="接收方角色">
-            <el-input v-model="communicationMatrixForm.receiverRole" placeholder="例如 开发团队、测试团队、管理层" />
-          </el-form-item>
-          <el-form-item label="沟通渠道">
-            <el-select v-model="communicationMatrixForm.channel" style="width: 100%">
-              <el-option v-for="option in communicationChannelOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="沟通频率">
-            <el-input v-model="communicationMatrixForm.frequency" placeholder="例如 每日、每周、按里程碑、按需" />
-          </el-form-item>
-          <el-form-item label="沟通主题" class="scope-form-span">
-            <el-input v-model="communicationMatrixForm.topic" placeholder="例如 项目进度同步、风险升级、上线审批、客户例会" />
-          </el-form-item>
-        </el-form>
-        <div class="dialog-actions-inline">
-          <el-button @click="resetCommunicationMatrixForm()">重置表单</el-button>
-          <el-button v-if="canEditProjectContent" type="primary" :loading="communicationLoading" @click="saveCommunicationMatrix">
-            {{ editingCommunicationMatrixId ? '保存修改' : '新增规则' }}
-          </el-button>
-        </div>
-      </div>
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>沟通安排列表</h4>
-          <div class="dialog-summary-text">明确谁在何时通过什么渠道向谁同步什么信息</div>
-        </div>
-        <div v-if="communicationMatrixList.length" class="simple-list">
-          <div v-for="item in communicationMatrixList" :key="`communication-matrix-${item.id}`" class="simple-list-item">
-            <strong>{{ item.senderRole || '-' }} -> {{ item.receiverRole || '-' }}</strong>
-            <span>渠道: {{ formatCommunicationChannel(item.channel) }} | 频率: {{ item.frequency || '未设置' }}</span>
-            <span>主题: {{ item.topic || '未设置' }}</span>
-            <span>更新时间: {{ formatDateTimeText(item.updatedAt || item.createdAt) }}</span>
-            <div v-if="canEditProjectContent" class="baseline-actions">
-              <el-button size="small" @click="editCommunicationMatrix(item)">编辑</el-button>
-              <el-button size="small" type="danger" plain @click="removeCommunicationMatrix(item)">删除</el-button>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无沟通安排" />
-      </div>
-    </el-dialog>
+    <ProjectCommunicationMatrixDialog
+      :visible="communicationMatrixDialogVisible"
+      :can-edit-project-content="canEditProjectContent"
+      :editing-communication-matrix-id="editingCommunicationMatrixId"
+      :communication-loading="communicationLoading"
+      :communication-matrix-list="communicationMatrixList"
+      :communication-matrix-form="communicationMatrixForm"
+      :communication-channel-options="communicationChannelOptions"
+      :formatters="communicationMatrixDialogFormatters"
+      :actions="communicationMatrixDialogActions"
+      @update:visible="communicationMatrixDialogVisible = $event"
+    />
 
     <el-dialog v-model="meetingDialogVisible" title="会议计划" width="1080px">
       <div class="info-section">
@@ -11502,7 +12403,7 @@ onBeforeUnmount(() => {
           <el-date-picker v-model="projectForm.startDate" :disabled="!canManageProject" type="date" value-format="YYYY-MM-DD" :disabled-date="disabledStartDate" @change="normalizeProjectDates" />
         </el-form-item>
         <el-form-item label="结束日期">
-          <el-date-picker v-model="projectForm.endDate" :disabled="!canManageProject" type="date" value-format="YYYY-MM-DD" :disabled-date="disabledEndDate" />
+          <el-date-picker v-model="projectForm.endDate" :disabled="!canManageProject" type="date" value-format="YYYY-MM-DD" :disabled-date="disabledEndDate" @change="normalizeProjectDates" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -11644,523 +12545,81 @@ onBeforeUnmount(() => {
       </div>
     </el-dialog>
 
-    <el-dialog v-model="pendingReviewDialogVisible" :title="`待验收任务（${pendingReviewTaskCount}）`" width="920px">
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>待验收任务列表</h4>
-          <div class="dialog-summary-text">可直接通过验收，也可填写处理说明后直接打回修改。</div>
-        </div>
-        <el-skeleton :loading="pendingReviewLoading" animated>
-          <template #template>
-            <div class="simple-list">
-              <div class="simple-list-item"><strong>正在加载待验收任务...</strong></div>
-            </div>
-          </template>
-          <template #default>
-            <div v-if="pendingReviewTasks.length" class="simple-list">
-              <div v-for="item in pendingReviewTasks" :key="`pending-review-${item.id}`" class="simple-list-item">
-                <div class="pending-review-item-header">
-                  <strong>{{ item.name || `任务 ${item.id}` }}</strong>
-                  <span>{{ formatTaskStatus(item.status) }} | {{ formatPercentValue(item.progress) }}</span>
-                </div>
-                <div class="pending-review-item-meta">
-                  <span>负责人: {{ item.assigneeName || '-' }}</span>
-                  <span>计划时间: {{ formatDateText(item.plannedStartDate) }} - {{ formatDateText(item.plannedEndDate) }}</span>
-                  <span>计划工时: {{ formatHoursText(item.plannedHours) }}</span>
-                </div>
-                <span>{{ item.remark || item.description || '暂无提交说明' }}</span>
-                <div class="pending-review-item-actions">
-                  <el-button
-                    link
-                    type="primary"
-                    :disabled="pendingReviewActingTaskId === String(item.id)"
-                    @click="openPendingReviewTask(item)"
-                  >
-                    查看并处理
-                  </el-button>
-                  <el-button
-                    type="danger"
-                    plain
-                    size="small"
-                    :loading="isPendingReviewActing(item.id, 'reject')"
-                    @click="rejectPendingReviewTask(item)"
-                  >
-                    打回修改
-                  </el-button>
-                  <el-button
-                    type="success"
-                    plain
-                    size="small"
-                    :loading="isPendingReviewActing(item.id, 'approve')"
-                    @click="approvePendingReviewTask(item)"
-                  >
-                    通过验收
-                  </el-button>
-                </div>
-              </div>
-            </div>
-            <el-empty v-else description="暂无待验收任务" />
-          </template>
-        </el-skeleton>
-      </div>
-    </el-dialog>
+    <ProjectPendingReviewDialog
+      :visible="pendingReviewDialogVisible"
+      :pending-review-task-count="pendingReviewTaskCount"
+      :pending-review-loading="pendingReviewLoading"
+      :pending-review-tasks="pendingReviewTasks"
+      :pending-review-acting-task-id="pendingReviewActingTaskId"
+      :formatters="pendingReviewDialogFormatters"
+      :helpers="pendingReviewDialogHelpers"
+      :actions="pendingReviewDialogActions"
+      @update:visible="pendingReviewDialogVisible = $event"
+    />
 
-    <el-dialog v-model="taskInfoDialogVisible" title="任务详情" width="820px">
-      <div v-if="selectedTaskRow" class="info-section">
-        <div class="dashboard-panels">
-          <div class="dashboard-card"><span>任务名称</span><strong>{{ selectedTaskRow.name || '-' }}</strong></div>
-          <div class="dashboard-card"><span>WBS</span><strong>{{ selectedTaskRow.wbsCode || '-' }}</strong></div>
-          <div class="dashboard-card"><span>任务模式</span><strong>{{ selectedTaskRow.mode || '-' }}</strong></div>
-          <div class="dashboard-card"><span>计划开始</span><strong>{{ selectedTaskRow.start || '-' }}</strong></div>
-          <div class="dashboard-card"><span>计划完成</span><strong>{{ selectedTaskRow.finish || '-' }}</strong></div>
-          <div class="dashboard-card"><span>当前状态</span><strong>{{ formatTaskStatus(taskDetail?.status || selectedTaskRow.status) }}</strong></div>
-        </div>
-      </div>
-      <div v-if="selectedTaskRow" class="task-detail-section-tabs">
-        <button
-          v-for="item in visibleTaskDetailSections"
-          :key="item.key"
-          type="button"
-          class="task-detail-tab"
-          :class="{ active: taskDetailSection === item.key }"
-          @click="taskDetailSection = item.key"
-        >
-          {{ item.label }}
-        </button>
-      </div>
-      <el-skeleton :loading="taskDetailLoading" animated>
-        <template #template>
-          <div class="simple-list">
-            <div class="simple-list-item"><strong>正在加载任务详情...</strong></div>
-          </div>
-        </template>
-        <template #default>
-          <div v-if="selectedTaskRow && taskDetailSection === 'basic'" class="info-section">
-            <div class="section-header-inline">
-              <h4>基础信息</h4>
-              <div class="dialog-summary-text">维护描述和关联里程碑</div>
-            </div>
-            <el-form label-width="88px" class="scope-form-grid">
-              <el-form-item label="负责人">
-                <el-select
-                  v-model="taskBasicForm.assigneeId"
-                  clearable
-                  filterable
-                  :disabled="!canEditTaskBasic || selectedTaskAssigneeLocked"
-                  :placeholder="selectedTaskAssigneePlaceholder"
-                >
-                  <el-option v-for="option in taskAssigneeOptions" :key="option.value" :label="option.label" :value="option.value" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="描述" class="scope-form-span">
-                <el-input
-                  v-model="taskBasicForm.description"
-                  :disabled="!canEditTaskBasic"
-                  type="textarea"
-                  :rows="3"
-                  placeholder="输入任务说明、执行目标或补充信息"
-                />
-              </el-form-item>
-              <el-form-item label="关联里程碑">
-                <el-select v-model="taskBasicForm.milestoneId" clearable filterable :disabled="!canManageTaskBasic" placeholder="可选绑定到一个里程碑">
-                  <el-option v-for="option in milestoneOptions" :key="option.value" :label="option.label" :value="option.value" />
-                </el-select>
-              </el-form-item>
-            </el-form>
-            <div v-if="canEditTaskBasic" class="dialog-actions-inline">
-              <el-button type="primary" :loading="taskDetailLoading" @click="saveTaskBasicInfo">保存基础信息</el-button>
-            </div>
-            <div class="simple-list">
-              <div class="simple-list-item">
-                <strong>描述</strong>
-                <span>{{ taskDetail?.description || taskBasicForm.description || selectedTaskRow.name || '暂无描述' }}</span>
-              </div>
-              <div class="simple-list-item">
-                <strong>进度</strong>
-                <span>{{ Number(taskDetail?.progress ?? selectedTaskRow.progress ?? 0) }}%</span>
-              </div>
-              <div class="simple-list-item">
-                <strong>负责人</strong>
-                <span>{{ taskDetail?.assigneeName || selectedTaskRow.assigneeName || '未分配' }}</span>
-              </div>
-              <div class="simple-list-item">
-                <strong>关联里程碑</strong>
-                <span>{{ taskDetail?.milestoneName || '未关联' }}</span>
-              </div>
-              <div class="simple-list-item">
-                <strong>依赖数量</strong>
-                <span>{{ taskDetail?.dependencies?.length || 0 }}</span>
-              </div>
-              <div class="simple-list-item">
-                <strong>评论数量</strong>
-                <span>{{ taskDetail?.comments?.length || 0 }}</span>
-              </div>
-            </div>
-          </div>
-          <div v-if="selectedTaskRow && taskDetailSection === 'progress'" class="info-section">
-            <div class="section-header-inline">
-              <h4>进度更新</h4>
-              <div class="dialog-summary-text">{{ taskProgressWorkflowHint }}</div>
-            </div>
-            <el-form label-width="88px" class="scope-form-grid">
-              <el-form-item label="状态">
-                <div class="task-progress-status-field">
-                  <el-input :model-value="formatTaskStatus(taskProgressDisplayStatus)" disabled />
-                  <span class="task-progress-status-note">状态按进度自动计算，0% 为未开始，1%-99% 为进行中，100% 显示已完成；成员提交后才会进入待验收。</span>
-                </div>
-              </el-form-item>
-              <el-form-item label="进度">
-                <el-slider v-model="taskProgressForm.progress" :disabled="!selectedTaskCanUpdateProgress" :min="0" :max="100" :show-input="true" />
-              </el-form-item>
-              <el-form-item label="备注" class="scope-form-span">
-                <el-input v-model="taskProgressForm.remark" :disabled="!selectedTaskCanUpdateProgress" type="textarea" :rows="3" placeholder="记录本次进展、阻塞原因或完成说明" />
-              </el-form-item>
-            </el-form>
-          </div>
-          <div v-if="selectedTaskRow?.taskId && taskDetailSection === 'dependency'" class="info-section">
-            <div class="section-header-inline">
-              <h4>任务依赖</h4>
-              <div class="dialog-summary-text">当前任务作为后置任务，选择它的前置任务</div>
-            </div>
-            <div class="simple-list">
-              <div v-if="taskDetail?.dependencies?.length" class="simple-list">
-                <div v-for="item in taskDetail.dependencies" :key="`task-dependency-${item.id}`" class="simple-list-item">
-                  <strong>{{ item.predecessorTaskName }} -> {{ item.successorTaskName }}</strong>
-                  <span>类型: {{ item.dependencyType || 'FS' }}</span>
-                  <div class="baseline-actions">
-                    <el-button v-if="canEditTaskDependency" size="small" type="danger" plain @click="removeTaskDependency(item)">删除</el-button>
-                  </div>
-                </div>
-              </div>
-              <span v-else>暂无依赖</span>
-            </div>
-            <el-form v-if="canEditTaskDependency" label-width="88px" class="scope-form-grid">
-              <el-form-item label="前置任务">
-                <el-select v-model="taskDependencyForm.predecessorTaskId" filterable clearable placeholder="请选择前置任务">
-                  <el-option v-for="option in dependencyTaskOptions" :key="option.value" :label="option.label" :value="option.value" />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="依赖类型">
-                <el-select v-model="taskDependencyForm.dependencyType" style="width: 100%">
-                  <el-option label="完成-开始 FS" value="FS" />
-                  <el-option label="开始-开始 SS" value="SS" />
-                  <el-option label="完成-完成 FF" value="FF" />
-                  <el-option label="开始-完成 SF" value="SF" />
-                </el-select>
-              </el-form-item>
-            </el-form>
-            <div v-if="canEditTaskDependency" class="dialog-actions-inline">
-              <el-button type="primary" :loading="taskDetailLoading" @click="saveTaskDependency">新增依赖</el-button>
-            </div>
-          </div>
-          <div v-if="selectedTaskRow && taskDetailSection === 'risk'" class="info-section">
-            <div class="section-header-inline">
-              <h4>关联风险</h4>
-              <div class="dialog-summary-text">查看当前任务挂接的风险，风险内容在项目页风险登记册里统一维护</div>
-            </div>
-            <div class="simple-list">
-              <div v-if="taskRelatedRisks.length" class="simple-list">
-                <div v-for="item in taskRelatedRisks" :key="`task-risk-${item.id}`" class="simple-list-item">
-                  <strong>{{ item.riskCode || '-' }} | {{ item.name || '未命名风险' }}</strong>
-                  <span>等级: {{ formatRiskLevel(item.level) }} | 状态: {{ formatRiskStatus(item.status) }}</span>
-                  <span>阶段: {{ item.phaseName || '未设置阶段' }}</span>
-                  <span>应对策略: {{ item.responseStrategy || '未填写' }}</span>
-                </div>
-              </div>
-              <span v-else>当前任务未关联风险</span>
-            </div>
-          </div>
-          <div v-if="selectedTaskRow && taskDetailSection === 'comment'" class="info-section">
-            <div class="section-header-inline">
-              <h4>任务评论</h4>
-              <div class="dialog-summary-text">记录进展说明、协作沟通或问题跟踪</div>
-            </div>
-            <div v-if="taskCommentForm.replyToId" class="reply-target-banner">
-              <span>正在回复：{{ taskCommentForm.replyToName }}</span>
-              <el-button text @click="resetTaskCommentForm">取消回复</el-button>
-            </div>
-            <div class="scope-form-grid">
-              <div class="scope-form-span">
-                <el-input
-                  v-model="taskCommentForm.content"
-                  :disabled="!canCommentOnTasks"
-                  type="textarea"
-                  :rows="3"
-                  placeholder="输入评论内容"
-                />
-              </div>
-            </div>
-            <div v-if="canCommentOnTasks" class="dialog-actions-inline">
-              <el-button type="primary" :loading="taskDetailLoading" @click="saveTaskComment">发表评论</el-button>
-            </div>
-            <div class="simple-list">
-              <div v-if="taskCommentThreads.length" class="comment-thread-list">
-                <div v-for="item in taskCommentThreads" :key="`task-comment-${item.id}`" class="comment-thread-item">
-                  <div class="simple-list-item">
-                    <strong>{{ item.userName || '未知用户' }}</strong>
-                    <span>{{ item.createdAt || '-' }}</span>
-                    <span>{{ item.content || '' }}</span>
-                    <div class="baseline-actions">
-                      <el-button v-if="canCommentOnTasks" size="small" text @click="startReplyComment(item)">回复</el-button>
-                      <el-button v-if="canDeleteTaskComment(item)" size="small" type="danger" plain @click="removeTaskComment(item)">删除</el-button>
-                    </div>
-                  </div>
-                  <div v-if="item.replies?.length" class="comment-replies">
-                    <div v-for="reply in item.replies" :key="`task-comment-reply-${reply.id}`" class="simple-list-item comment-reply-item">
-                      <strong>{{ reply.userName || '未知用户' }}</strong>
-                      <span>{{ reply.createdAt || '-' }}</span>
-                      <span>回复 {{ reply.replyToName || item.userName || '该评论' }}：{{ reply.content || '' }}</span>
-                      <div class="baseline-actions">
-                        <el-button v-if="canCommentOnTasks" size="small" text @click="startReplyComment(reply)">回复</el-button>
-                        <el-button v-if="canDeleteTaskComment(reply)" size="small" type="danger" plain @click="removeTaskComment(reply)">删除</el-button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <span v-else>暂无评论</span>
-            </div>
-          </div>
-        </template>
-      </el-skeleton>
-      <el-empty v-if="!selectedTaskRow" description="请先选中任务" />
-      <template #footer>
-        <el-button @click="taskInfoDialogVisible = false">关闭</el-button>
-        <el-button
-          v-if="taskDetailSection === 'progress' && selectedTaskCanUpdateProgress"
-          :loading="taskDetailLoading"
-          @click="saveTaskProgress"
-        >保存进度</el-button>
-        <el-button
-          v-if="taskDetailSection === 'progress' && selectedTaskCanSubmitReview"
-          type="primary"
-          :loading="taskDetailLoading"
-          @click="submitTaskCompletion"
-        >提交完成</el-button>
-        <el-button
-          v-if="taskDetailSection === 'progress' && selectedTaskCanApproveReview"
-          type="success"
-          :loading="taskDetailLoading"
-          @click="approveTaskCompletion"
-        >通过验收</el-button>
-        <el-button
-          v-if="taskDetailSection === 'progress' && selectedTaskCanApproveReview"
-          type="warning"
-          plain
-          :loading="taskDetailLoading"
-          @click="rejectTaskCompletion"
-        >打回修改</el-button>
-        <el-button
-          v-if="taskDetailSection === 'progress' && selectedTaskCanReopen"
-          type="primary"
-          plain
-          :loading="taskDetailLoading"
-          @click="reopenTaskCompletion"
-        >重开任务</el-button>
-      </template>
-    </el-dialog>
+    <ProjectTaskInfoDialog
+      :visible="taskInfoDialogVisible"
+      :selected-task-row="selectedTaskRow"
+      :task-detail="taskDetail"
+      :task-detail-loading="taskDetailLoading"
+      :task-detail-section="taskDetailSection"
+      :visible-task-detail-sections="visibleTaskDetailSections"
+      :task-basic-form="taskBasicForm"
+      :task-progress-form="taskProgressForm"
+      :task-dependency-form="taskDependencyForm"
+      :task-comment-form="taskCommentForm"
+      :task-comment-threads="taskCommentThreads"
+      :task-related-risks="taskRelatedRisks"
+      :task-assignee-options="taskAssigneeOptions"
+      :milestone-options="milestoneOptions"
+      :dependency-task-options="dependencyTaskOptions"
+      :task-constraint-type-options="taskConstraintTypeOptions"
+      :task-progress-display-status="taskProgressDisplayStatus"
+      :task-progress-workflow-hint="taskProgressWorkflowHint"
+      :selected-task-assignee-placeholder="selectedTaskAssigneePlaceholder"
+      :permissions="taskInfoDialogPermissions"
+      :helpers="taskInfoDialogHelpers"
+      :formatters="taskInfoDialogFormatters"
+      :actions="taskInfoDialogActions"
+      @update:visible="taskInfoDialogVisible = $event"
+      @update:task-detail-section="taskDetailSection = $event"
+    />
 
-    <el-dialog v-model="milestoneDialogVisible" title="里程碑管理" width="860px">
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>{{ editingMilestoneTaskLocalId || editingMilestoneId ? '编辑里程碑' : '新增里程碑' }}</h4>
-          <div class="dialog-summary-text">
-            统一管理任务计划中的里程碑节点，保存文件后会同步到项目日历、报表和任务关联
-          </div>
-        </div>
-        <el-form label-width="88px" class="scope-form-grid">
-          <el-form-item label="名称">
-            <el-input v-model="milestoneForm.name" placeholder="例如 需求冻结、版本上线" />
-          </el-form-item>
-          <el-form-item label="状态">
-            <el-input :model-value="formatMilestoneStatus(milestoneForm.status)" disabled />
-          </el-form-item>
-          <el-form-item label="计划时间">
-            <el-date-picker
-              v-model="milestoneForm.plannedDate"
-              type="date"
-              value-format="YYYY-MM-DD"
-              format="YYYY-MM-DD"
-              placeholder="选择计划日期"
-            />
-          </el-form-item>
-          <el-form-item label="说明" class="scope-form-span">
-            <el-input v-model="milestoneForm.description" type="textarea" :rows="3" placeholder="记录该里程碑的验收标准或关键说明" />
-          </el-form-item>
-        </el-form>
-        <div class="dialog-actions-inline">
-          <el-button @click="resetMilestoneForm">重置</el-button>
-          <el-button v-if="canEditTaskPlan" type="primary" :loading="milestoneLoading" @click="saveMilestone">
-            {{ editingMilestoneTaskLocalId || editingMilestoneId ? '更新任务计划' : '写入任务计划' }}
-          </el-button>
-        </div>
-      </div>
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>里程碑列表</h4>
-          <div class="dialog-summary-text">任务里程碑是主数据；历史台账里程碑可纳入计划统一管理</div>
-        </div>
-        <div v-if="visibleMilestoneList.length" class="simple-list">
-          <div
-            v-for="item in visibleMilestoneList"
-            :key="item.isTaskBased ? `milestone-task-${item.localId}` : `milestone-legacy-${item.id}`"
-            class="simple-list-item"
-          >
-            <strong>{{ item.name || `里程碑${item.id}` }}</strong>
-            <span>
-              状态: {{ formatMilestoneStatus(item.status || 'PENDING') }}
-              <template v-if="item.isTaskBased">
-                | 来源: 任务计划
-                <template v-if="item.isTaskDraft"> | 待保存</template>
-              </template>
-              <template v-else> | 来源: 历史台账</template>
-            </span>
-            <span>计划时间: {{ item.plannedDate ? String(item.plannedDate).replace('T', ' ').slice(0, 19) : '-' }}</span>
-            <span>{{ item.description || '暂无说明' }}</span>
-            <div v-if="canEditTaskPlan" class="baseline-actions">
-              <el-button size="small" @click="populateMilestoneForm(item)">
-                {{ item.isLegacyProjection ? '纳入计划' : '编辑' }}
-              </el-button>
-              <el-button size="small" type="danger" plain @click="removeMilestone(item)">
-                {{ item.isLegacyProjection ? '删除历史项' : '删除' }}
-              </el-button>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无里程碑" />
-      </div>
-    </el-dialog>
+    <ProjectMilestoneDialog
+      :visible="milestoneDialogVisible"
+      :editing-milestone-task-local-id="editingMilestoneTaskLocalId"
+      :editing-milestone-id="editingMilestoneId"
+      :can-edit-task-plan="canEditTaskPlan"
+      :milestone-form="milestoneForm"
+      :milestone-loading="milestoneLoading"
+      :visible-milestone-list="visibleMilestoneList"
+      :formatters="milestoneDialogFormatters"
+      :helpers="milestoneDialogHelpers"
+      :actions="milestoneDialogActions"
+      @update:visible="milestoneDialogVisible = $event"
+    />
 
-    <el-dialog v-model="riskDialogVisible" title="风险登记册" width="980px">
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>{{ editingRiskId ? '编辑风险' : '新增风险' }}</h4>
-          <div class="dialog-summary-text">维护风险清单、应对策略和状态流转</div>
-        </div>
-        <el-form label-width="88px" class="scope-form-grid">
-          <el-form-item label="风险名称">
-            <el-input v-model="riskForm.name" placeholder="例如 核心人员流失、需求频繁变更" />
-          </el-form-item>
-          <el-form-item label="风险等级">
-            <el-input :model-value="formatRiskLevel(riskForm.level)" disabled />
-          </el-form-item>
-          <el-form-item label="概率">
-            <el-slider v-model="riskForm.probability" :min="1" :max="5" :step="1" :show-stops="true" :show-input="true" />
-          </el-form-item>
-          <el-form-item label="影响">
-            <el-slider v-model="riskForm.impact" :min="1" :max="5" :step="1" :show-stops="true" :show-input="true" />
-          </el-form-item>
-          <el-form-item label="关联任务">
-            <el-select v-model="riskForm.taskId" clearable filterable placeholder="选择风险影响的 WBS 任务">
-              <el-option
-                v-for="option in riskTaskOptions"
-                :key="`risk-task-${option.value}`"
-                :label="option.label"
-                :value="option.value"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="关联阶段">
-            <el-input v-model="riskForm.phaseName" placeholder="可自动带出，也可手动补充阶段说明" />
-          </el-form-item>
-          <el-form-item label="风险描述" class="scope-form-span">
-            <el-input v-model="riskForm.description" type="textarea" :rows="3" placeholder="描述触发条件、影响范围或成因" />
-          </el-form-item>
-          <el-form-item label="应对策略" class="scope-form-span">
-            <el-input v-model="riskForm.responseStrategy" type="textarea" :rows="3" placeholder="记录规避、减轻、转移或接受策略" />
-          </el-form-item>
-        </el-form>
-        <div class="dialog-actions-inline">
-          <el-button @click="resetRiskForm">重置</el-button>
-          <el-button v-if="canEditProjectContent" type="primary" :loading="riskLoading" @click="saveRisk">{{ editingRiskId ? '保存修改' : '新增风险' }}</el-button>
-        </div>
-      </div>
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>状态流转</h4>
-          <div class="dialog-summary-text">从列表中选中一条风险后更新状态</div>
-        </div>
-        <el-form label-width="88px" class="scope-form-grid">
-          <el-form-item label="当前风险">
-            <el-select v-model="riskStatusForm.riskId" filterable clearable placeholder="请选择风险">
-              <el-option
-                v-for="item in riskList"
-                :key="`risk-status-${item.id}`"
-                :label="`${item.riskCode || '-'} | ${item.name || '未命名风险'}`"
-                :value="String(item.id)"
-              />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="新状态">
-            <el-select v-model="riskStatusForm.status" style="width: 100%">
-              <el-option v-for="option in riskStatusOptions" :key="option.value" :label="option.label" :value="option.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="说明" class="scope-form-span">
-            <el-input v-model="riskStatusForm.comment" type="textarea" :rows="2" placeholder="记录本次状态变更说明" />
-          </el-form-item>
-        </el-form>
-        <div class="dialog-actions-inline">
-          <el-button v-if="canEditProjectContent" type="primary" :loading="riskLoading" @click="saveRiskStatus">更新状态</el-button>
-        </div>
-      </div>
-      <div class="info-section">
-        <div class="section-header-inline">
-          <h4>风险列表</h4>
-          <div class="dialog-summary-text">按概率和影响维护项目风险登记册</div>
-        </div>
-        <div v-if="riskList.length" class="simple-list">
-          <div v-for="item in riskList" :key="`risk-${item.id}`" class="simple-list-item">
-            <strong>{{ item.riskCode || '-' }} | {{ item.name || '未命名风险' }}</strong>
-            <span>等级: {{ formatRiskLevel(item.level) }} | 状态: {{ formatRiskStatus(item.status) }}</span>
-            <span>概率: {{ item.probability || 0 }} | 影响: {{ item.impact || 0 }}</span>
-            <span>关联任务: {{ item.taskName || '未绑定任务' }}</span>
-            <span>关联阶段: {{ item.phaseName || '未设置阶段' }}</span>
-            <span>应对策略: {{ item.responseStrategy || '未填写' }}</span>
-            <span>识别时间: {{ item.identifiedAt ? String(item.identifiedAt).replace('T', ' ').slice(0, 19) : '-' }}</span>
-            <div class="baseline-actions">
-              <el-button v-if="canEditProjectContent" size="small" @click="populateRiskForm(item)">编辑</el-button>
-              <el-button v-if="canEditProjectContent" size="small" @click="startRiskStatusEdit(item)">改状态</el-button>
-              <el-button v-if="canEditProjectContent" size="small" type="danger" plain @click="removeRisk(item)">删除</el-button>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无风险数据" />
-      </div>
-    </el-dialog>
+    <ProjectRiskDialog
+      :visible="riskDialogVisible"
+      :can-edit-project-content="canEditProjectContent"
+      :editing-risk-id="editingRiskId"
+      :risk-form="riskForm"
+      :risk-status-form="riskStatusForm"
+      :risk-loading="riskLoading"
+      :risk-task-options="riskTaskOptions"
+      :risk-status-options="riskStatusOptions"
+      :risk-list="riskList"
+      :formatters="riskDialogFormatters"
+      :actions="riskDialogActions"
+      @update:visible="riskDialogVisible = $event"
+    />
 
-    <el-dialog v-model="riskMatrixDialogVisible" title="风险矩阵" width="940px">
-      <div class="dashboard-panels">
-        <div class="dashboard-card"><span>高风险</span><strong>{{ riskMatrix?.highCount ?? 0 }}</strong></div>
-        <div class="dashboard-card"><span>严重风险</span><strong>{{ riskMatrix?.criticalCount ?? 0 }}</strong></div>
-        <div class="dashboard-card"><span>风险总数</span><strong>{{ riskMatrix?.levels?.length ?? 0 }}</strong></div>
-      </div>
-      <div class="info-section">
-        <h4>5 x 5 风险矩阵</h4>
-        <div class="risk-matrix-board">
-          <div class="risk-matrix-corner">概率 \ 影响</div>
-          <div v-for="impact in 5" :key="`impact-head-${impact}`" class="risk-matrix-header">{{ impact }}</div>
-          <template v-for="probability in [5, 4, 3, 2, 1]" :key="`row-${probability}`">
-            <div class="risk-matrix-header">{{ probability }}</div>
-            <div
-              v-for="impact in 5"
-              :key="`cell-${probability}-${impact}`"
-              :class="getMatrixCellClass(probability, impact)"
-            >
-              <div class="risk-matrix-count">{{ getMatrixCellItems(probability, impact).length }}</div>
-              <div v-if="getMatrixCellItems(probability, impact).length" class="risk-matrix-names">
-                <span
-                  v-for="item in getMatrixCellItems(probability, impact)"
-                  :key="`matrix-risk-${item.riskId}`"
-                >
-                  {{ item.riskName || `风险${item.riskId}` }}
-                </span>
-              </div>
-            </div>
-          </template>
-        </div>
-      </div>
-    </el-dialog>
+    <ProjectRiskMatrixDialog
+      :visible="riskMatrixDialogVisible"
+      :risk-matrix="riskMatrix"
+      :helpers="riskMatrixDialogHelpers"
+      @update:visible="riskMatrixDialogVisible = $event"
+    />
 
     <el-dialog v-model="exportDialogVisible" title="导出" width="760px">
       <div class="info-section">
@@ -14623,6 +15082,10 @@ onBeforeUnmount(() => {
   background: var(--gantt-weekend-color);
 }
 
+.timeline-cell.holiday {
+  background: linear-gradient(135deg, #fff7cf, #ffe6a3);
+}
+
 .timeline-cell.disabled {
   background: #ececec;
 }
@@ -15263,25 +15726,6 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 
-.pending-review-item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.pending-review-item-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.pending-review-item-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 .baseline-actions {
   display: flex;
   flex-wrap: wrap;
@@ -15427,64 +15871,6 @@ onBeforeUnmount(() => {
 
 .comment-reply-item {
   border-left: 3px solid #dbe4f6;
-}
-
-.risk-matrix-board {
-  display: grid;
-  grid-template-columns: 96px repeat(5, minmax(0, 1fr));
-  border: 1px solid #d9dfeb;
-}
-
-.risk-matrix-corner,
-.risk-matrix-header {
-  min-height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-right: 1px solid #d9dfeb;
-  border-bottom: 1px solid #d9dfeb;
-  background: #f6f8fc;
-  color: #40506b;
-  font-weight: 700;
-}
-
-.risk-matrix-cell {
-  min-height: 110px;
-  padding: 10px;
-  border-right: 1px solid #d9dfeb;
-  border-bottom: 1px solid #d9dfeb;
-  display: grid;
-  align-content: start;
-  gap: 8px;
-}
-
-.risk-matrix-low {
-  background: #edf8ef;
-}
-
-.risk-matrix-medium {
-  background: #fff9e6;
-}
-
-.risk-matrix-high {
-  background: #fff0dd;
-}
-
-.risk-matrix-critical {
-  background: #fde9e7;
-}
-
-.risk-matrix-count {
-  font-size: 22px;
-  font-weight: 700;
-  color: #21324f;
-}
-
-.risk-matrix-names {
-  display: grid;
-  gap: 4px;
-  font-size: 12px;
-  color: #31415d;
 }
 
 .import-template-panel {

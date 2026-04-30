@@ -67,6 +67,7 @@ public class ProjectEditorPreferenceService {
                             Long currentUserId) {
         entity.setGanttAppearanceJson(writeJson(dto == null ? null : dto.getGanttAppearance()));
         entity.setWbsConfigJson(writeJson(dto == null ? null : dto.getWbsConfig()));
+        entity.setScheduleOptionsJson(writeJson(dto == null ? null : dto.getScheduleOptions()));
         entity.setUpdatedBy(currentUserId);
         entity.setUpdatedAt(now);
     }
@@ -77,10 +78,12 @@ public class ProjectEditorPreferenceService {
         if (entity == null) {
             vo.setGanttAppearance(new LinkedHashMap<>());
             vo.setWbsConfig(new LinkedHashMap<>());
+            vo.setScheduleOptions(new LinkedHashMap<>());
             return vo;
         }
         vo.setGanttAppearance(readJson(entity.getGanttAppearanceJson()));
         vo.setWbsConfig(readJson(entity.getWbsConfigJson()));
+        vo.setScheduleOptions(readJson(entity.getScheduleOptionsJson()));
         vo.setUpdatedAt(entity.getUpdatedAt());
         return vo;
     }

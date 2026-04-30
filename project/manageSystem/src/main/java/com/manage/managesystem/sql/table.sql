@@ -144,6 +144,7 @@ CREATE TABLE project_editor_preference (
                                            project_id bigint NOT NULL,
                                            gantt_appearance_json longtext NULL,
                                            wbs_config_json longtext NULL,
+                                           schedule_options_json longtext NULL,
                                            created_by bigint NULL,
                                            created_at datetime NOT NULL,
                                            updated_by bigint NULL,
@@ -279,6 +280,9 @@ CREATE TABLE project_task (
                               assignee_id bigint NULL,
                               planned_start_date datetime NULL,
                               planned_end_date datetime NULL,
+                              deadline_date datetime NULL,
+                              constraint_type varchar(16) NULL,
+                              constraint_date datetime NULL,
                               actual_start_date datetime NULL,
                               actual_end_date datetime NULL,
                               planned_hours decimal(8,2) DEFAULT 0,
@@ -313,6 +317,7 @@ CREATE TABLE task_dependency (
                                  predecessor_task_id bigint NOT NULL,
                                  successor_task_id bigint NOT NULL,
                                  dependency_type varchar(8) NOT NULL,
+                                 lag_days int NOT NULL DEFAULT 0,
                                  created_at datetime NOT NULL,
                                  UNIQUE KEY uk_task_dependency (project_id, predecessor_task_id, successor_task_id, dependency_type),
                                  KEY idx_task_dependency_predecessor (predecessor_task_id),
@@ -969,6 +974,51 @@ CREATE TABLE contract_info (
 
 /* 恢复外键检查 */
 SET FOREIGN_KEY_CHECKS = 1;
+
+/* Optional data repair: reassign SYS_ADMIN-created/owned projects to lisi when lisi exists. */
+START TRANSACTION;
+
+SET @lisi_id := (
+    SELECT id
+    FROM sys_user
+    WHERE username = 'lisi'
+      AND is_deleted = 0
+    LIMIT 1
+);
+
+UPDATE project_info
+SET created_by = @lisi_id,
+    updated_by = @lisi_id,
+    updated_at = NOW()
+WHERE @lisi_id IS NOT NULL
+  AND is_deleted = 0
+  AND created_by IN (
+      SELECT user_id
+      FROM (
+          SELECT ur.user_id
+          FROM sys_user_role ur
+                   INNER JOIN sys_role r ON r.id = ur.role_id
+          WHERE r.role_code = 'SYS_ADMIN'
+      ) sys_admin_users
+  );
+
+UPDATE project_info
+SET owner_id = @lisi_id,
+    updated_by = @lisi_id,
+    updated_at = NOW()
+WHERE @lisi_id IS NOT NULL
+  AND is_deleted = 0
+  AND owner_id IN (
+      SELECT user_id
+      FROM (
+          SELECT ur.user_id
+          FROM sys_user_role ur
+                   INNER JOIN sys_role r ON r.id = ur.role_id
+          WHERE r.role_code = 'SYS_ADMIN'
+      ) sys_admin_users
+  );
+
+COMMIT;
 
 /* 预置基础数据 */
 -- 预置角色

@@ -14,4 +14,6 @@ public class ProjectEditorPreferenceEntity extends BaseEntity {
     private String ganttAppearanceJson;
 
     private String wbsConfigJson;
+
+    private String scheduleOptionsJson;
 }

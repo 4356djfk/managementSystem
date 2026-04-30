@@ -13,5 +13,7 @@ public class ProjectEditorPreferenceVO {
 
     private Map<String, Object> wbsConfig;
 
+    private Map<String, Object> scheduleOptions;
+
     private LocalDateTime updatedAt;
 }

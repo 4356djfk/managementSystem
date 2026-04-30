@@ -25,6 +25,12 @@ public class UpdateTaskDto {
 
     private LocalDateTime plannedEndDate;
 
+    private LocalDateTime deadlineDate;
+
+    private String constraintType;
+
+    private LocalDateTime constraintDate;
+
     private BigDecimal plannedHours;
 
     @NotBlank

@@ -13,6 +13,7 @@ import com.manage.managesystem.entity.TaskDependencyEntity;
 import com.manage.managesystem.entity.TaskEntity;
 import com.manage.managesystem.enums.DependencyTypeEnum;
 import com.manage.managesystem.enums.PriorityEnum;
+import com.manage.managesystem.enums.TaskConstraintTypeEnum;
 import com.manage.managesystem.enums.TaskStatusEnum;
 import com.manage.managesystem.enums.TaskTypeEnum;
 import com.manage.managesystem.mapper.ProjectMapper;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -82,8 +84,18 @@ public class TaskCommandService {
         entity.setStatus(taskStatus.name());
         entity.setProgress(normalizeProgress(dto.getProgress(), taskStatus));
         entity.setAssigneeId(resolveAssigneeForStatus(dto.getAssigneeId(), taskStatus));
+        validateTaskScheduleFields(
+                dto.getPlannedStartDate(),
+                dto.getPlannedEndDate(),
+                dto.getDeadlineDate(),
+                dto.getConstraintType(),
+                dto.getConstraintDate()
+        );
         entity.setPlannedStartDate(dto.getPlannedStartDate());
         entity.setPlannedEndDate(dto.getPlannedEndDate());
+        entity.setDeadlineDate(dto.getDeadlineDate());
+        entity.setConstraintType(parseNullableConstraintType(dto.getConstraintType()));
+        entity.setConstraintDate(dto.getConstraintDate());
         entity.setPlannedHours(dto.getPlannedHours() == null ? BigDecimal.ZERO : dto.getPlannedHours());
         entity.setActualHours(BigDecimal.ZERO);
         entity.setPlannedCost(BigDecimal.ZERO);
@@ -133,8 +145,18 @@ public class TaskCommandService {
         entity.setStatus(normalizedStatus.name());
         entity.setProgress(normalizeProgress(requestedProgress, normalizedStatus));
         entity.setAssigneeId(resolveAssigneeForStatus(targetAssigneeId, normalizedStatus));
+        validateTaskScheduleFields(
+                dto.getPlannedStartDate(),
+                dto.getPlannedEndDate(),
+                canManageTask ? dto.getDeadlineDate() : entity.getDeadlineDate(),
+                canManageTask ? dto.getConstraintType() : entity.getConstraintType(),
+                canManageTask ? dto.getConstraintDate() : entity.getConstraintDate()
+        );
         entity.setPlannedStartDate(dto.getPlannedStartDate());
         entity.setPlannedEndDate(dto.getPlannedEndDate());
+        entity.setDeadlineDate(canManageTask ? dto.getDeadlineDate() : entity.getDeadlineDate());
+        entity.setConstraintType(canManageTask ? parseNullableConstraintType(dto.getConstraintType()) : entity.getConstraintType());
+        entity.setConstraintDate(canManageTask ? dto.getConstraintDate() : entity.getConstraintDate());
         entity.setPlannedHours(dto.getPlannedHours() == null ? BigDecimal.ZERO : dto.getPlannedHours());
         entity.setSortOrder(canManageTask && dto.getSortOrder() != null ? dto.getSortOrder() : entity.getSortOrder());
         entity.setRemark(canManageTask ? dto.getRemark() : entity.getRemark());
@@ -212,6 +234,7 @@ public class TaskCommandService {
         entity.setPredecessorTaskId(dto.getPredecessorTaskId());
         entity.setSuccessorTaskId(dto.getSuccessorTaskId());
         entity.setDependencyType(parseDependencyType(dto.getDependencyType()).name());
+        entity.setLagDays(normalizeLagDays(dto.getLagDays()));
         entity.setCreatedAt(LocalDateTime.now());
         taskMapper.insertDependency(entity);
         return requireDependency(projectId, entity.getId());
@@ -425,6 +448,93 @@ public class TaskCommandService {
         } catch (Exception ex) {
             throw new IllegalArgumentException("invalid dependency type");
         }
+    }
+
+    private String parseNullableConstraintType(String constraintType) {
+        if (constraintType == null || constraintType.isBlank()) {
+            return null;
+        }
+        try {
+            return TaskConstraintTypeEnum.valueOf(constraintType.trim().toUpperCase()).name();
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("invalid task constraint type");
+        }
+    }
+
+    private void validateTaskScheduleFields(LocalDateTime plannedStartDate,
+                                            LocalDateTime plannedEndDate,
+                                            LocalDateTime deadlineDate,
+                                            String constraintType,
+                                            LocalDateTime constraintDate) {
+        if (plannedStartDate != null && plannedEndDate != null && plannedEndDate.isBefore(plannedStartDate)) {
+            throw new IllegalArgumentException("planned end date cannot be earlier than planned start date");
+        }
+        String normalizedConstraintType = parseNullableConstraintType(constraintType);
+        if (normalizedConstraintType == null && constraintDate != null) {
+            throw new IllegalArgumentException("constraint date requires a constraint type");
+        }
+        if (deadlineDate != null && plannedStartDate != null && deadlineDate.isBefore(plannedStartDate)) {
+            throw new IllegalArgumentException("deadline date cannot be earlier than planned start date");
+        }
+        if (normalizedConstraintType == null) {
+            return;
+        }
+
+        TaskConstraintTypeEnum type = TaskConstraintTypeEnum.valueOf(normalizedConstraintType);
+        boolean requiresConstraintDate = switch (type) {
+            case SNET, SNLT, FNET, FNLT, MSO, MFO -> true;
+            default -> false;
+        };
+        if (requiresConstraintDate && constraintDate == null) {
+            throw new IllegalArgumentException("selected constraint type requires a constraint date");
+        }
+        if (!requiresConstraintDate || constraintDate == null) {
+            return;
+        }
+
+        LocalDate constraintLocalDate = constraintDate.toLocalDate();
+        if ((type == TaskConstraintTypeEnum.SNET || type == TaskConstraintTypeEnum.SNLT || type == TaskConstraintTypeEnum.MSO)
+                && plannedStartDate == null) {
+            throw new IllegalArgumentException("selected constraint type requires a planned start date");
+        }
+        if ((type == TaskConstraintTypeEnum.FNET || type == TaskConstraintTypeEnum.FNLT || type == TaskConstraintTypeEnum.MFO)
+                && plannedEndDate == null) {
+            throw new IllegalArgumentException("selected constraint type requires a planned end date");
+        }
+        if (plannedStartDate != null) {
+            LocalDate plannedStartLocalDate = plannedStartDate.toLocalDate();
+            if (type == TaskConstraintTypeEnum.SNET && plannedStartLocalDate.isBefore(constraintLocalDate)) {
+                throw new IllegalArgumentException("planned start date violates Start No Earlier Than");
+            }
+            if (type == TaskConstraintTypeEnum.SNLT && plannedStartLocalDate.isAfter(constraintLocalDate)) {
+                throw new IllegalArgumentException("planned start date violates Start No Later Than");
+            }
+            if (type == TaskConstraintTypeEnum.MSO && !plannedStartLocalDate.isEqual(constraintLocalDate)) {
+                throw new IllegalArgumentException("planned start date violates Must Start On");
+            }
+        }
+        if (plannedEndDate != null) {
+            LocalDate plannedEndLocalDate = plannedEndDate.toLocalDate();
+            if (type == TaskConstraintTypeEnum.FNET && plannedEndLocalDate.isBefore(constraintLocalDate)) {
+                throw new IllegalArgumentException("planned end date violates Finish No Earlier Than");
+            }
+            if (type == TaskConstraintTypeEnum.FNLT && plannedEndLocalDate.isAfter(constraintLocalDate)) {
+                throw new IllegalArgumentException("planned end date violates Finish No Later Than");
+            }
+            if (type == TaskConstraintTypeEnum.MFO && !plannedEndLocalDate.isEqual(constraintLocalDate)) {
+                throw new IllegalArgumentException("planned end date violates Must Finish On");
+            }
+        }
+    }
+
+    private Integer normalizeLagDays(Integer lagDays) {
+        if (lagDays == null) {
+            return 0;
+        }
+        if (lagDays < -3650 || lagDays > 3650) {
+            throw new IllegalArgumentException("lag days must be between -3650 and 3650");
+        }
+        return lagDays;
     }
 
     private TaskStatusEnum normalizeStatus(BigDecimal progress, String status, boolean canFinalizeTask) {

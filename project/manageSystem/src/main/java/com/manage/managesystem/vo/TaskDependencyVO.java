@@ -19,4 +19,6 @@ public class TaskDependencyVO {
     private String successorTaskName;
 
     private String dependencyType;
+
+    private Integer lagDays;
 }
